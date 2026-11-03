@@ -20,3 +20,15 @@ npm install
 npm run dev          # local site
 npm run build        # production build in dist/
 ```
+
+## Database
+`supabase/migrations` holds the initial schema. Later changes (per-person + per-vehicle pricing, tightened function
+grants) were applied directly to the Supabase project; its migration history is the source of truth.
+
+## One-time setup checklist
+1. GitHub: Settings → Pages → Source: **GitHub Actions**. Custom domain: `experiences.yondo.global`, then tick **Enforce HTTPS**.
+2. GoDaddy DNS for `yondo.global`: add a **CNAME** record, name `experiences`, value `<your-github-username>.github.io`.
+3. Supabase → Authentication → URL Configuration: Site URL `https://experiences.yondo.global`, and add
+   `https://experiences.yondo.global/**` to Redirect URLs.
+4. Supabase → Authentication → Email Templates → Magic Link: include `{{ .Token }}` so customers can type the code.
+5. Supabase → Authentication → SMTP: connect a real email sender (the built-in one only sends a few emails per hour).
