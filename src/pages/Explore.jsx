@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../App.jsx'
-import { CATEGORIES, CAT, searchExperiences } from '../lib/catalogue.js'
+import { CATEGORIES, CAT, searchExperiences, recommendedRank } from '../lib/catalogue.js'
 import { Icon, CAT_ICON } from '../components/Icon.jsx'
 import { TicketCard, Mascot, navigate } from '../components/ui.jsx'
 import { waLink } from '../lib/format.js'
@@ -33,7 +33,7 @@ export default function Explore({ cat }) {
     if (emirate) list = list.filter((e) => e.emirate === emirate)
     if (maxPrice) list = list.filter((e) => e.fromUnit !== 'trip' && e.from <= maxPrice)
     if (query.trim()) list = searchExperiences(list, query)
-    else if (sort === 'recommended') list = [...list].sort((a, b) => b.featured - a.featured || a.sort - b.sort || a.name.localeCompare(b.name))
+    else if (sort === 'recommended') list = [...list].sort((a, b) => recommendedRank(a) - recommendedRank(b) || a.sort - b.sort || a.name.localeCompare(b.name))
     if (sort === 'low') list = [...list].sort((a, b) => a.from - b.from)
     if (sort === 'high') list = [...list].sort((a, b) => b.from - a.from)
     return list
@@ -131,7 +131,7 @@ export default function Explore({ cat }) {
         {results.length ? (
           <div className="ticket-grid">
             {results.map((e) => (
-              <TicketCard key={e.slug} exp={e} />
+              <TicketCard key={e.slug} exp={e} showStandard={catalogue.showStandard} />
             ))}
           </div>
         ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon, CAT_ICON } from './Icon.jsx'
-import { photoUrl, photoSrcSet, photoAlt, CAT_ART } from '../lib/photos.js'
+import Scene from './Scene.jsx'
+import { photoUrl, photoSrcSet, photoAlt } from '../lib/photos.js'
 import { CAT } from '../lib/catalogue.js'
 import { aed } from '../lib/format.js'
 
@@ -14,8 +15,25 @@ import wavePhone from '../assets/mascot/wave-phone-sm.webp'
 import phoneThumbs from '../assets/mascot/phone-thumbs-sm.webp'
 import wave from '../assets/mascot/wave-sm.webp'
 import head from '../assets/mascot/head.webp'
+import lean from '../assets/mascot/lean-sm.webp'
+import leanXs from '../assets/mascot/lean-xs.webp'
+import jumpPhone from '../assets/mascot/jump-phone-sm.webp'
+import selfieThumb from '../assets/mascot/selfie-thumb-sm.webp'
 
-export const MASCOT = { welcome, welcomeSm, pointUp, jump, selfie, thumbs, wavePhone, phoneThumbs, wave, head }
+export const MASCOT = { welcome, welcomeSm, pointUp, jump, selfie, thumbs, wavePhone, phoneThumbs, wave, head, lean, leanXs, jumpPhone, selfieThumb }
+
+// Brand lockup: no logo mark, the full mascot leaning on the word "experiences".
+export function Brand({ footer = false }) {
+  return (
+    <a href="#home" className={`brand ${footer ? 'brand-footer' : ''}`} aria-label="Yondo Experiences home">
+      <span className="brand-word">
+        <span className="bw-1">yondo</span>
+        <span className="bw-2">experiences</span>
+      </span>
+      <img className="brand-mascot" src={leanXs} alt="" draggable="false" />
+    </a>
+  )
+}
 
 export function Mascot({ pose = 'welcome', className = '', alt = '', ...rest }) {
   return <img className={`mascot ${className}`} src={MASCOT[pose]} alt={alt} draggable="false" decoding="async" {...rest} />
@@ -37,13 +55,11 @@ export function Link({ to, className = '', children, ...rest }) {
 // A photo that degrades to category art if photos are off or fail to load.
 export function Photo({ imgKey, cat, url, w = 800, h, sizes, className = '', eager = false, children }) {
   const [failed, setFailed] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const src = url || photoUrl(imgKey, w, h)
-  const [c1, c2] = CAT_ART[cat] || CAT_ART.city
   return (
-    <div className={`photo ${className}`} style={{ '--art1': c1, '--art2': c2 }}>
-      <div className="photo-art" aria-hidden="true">
-        <Icon name={CAT_ICON[cat] || 'sparkle'} size={56} strokeWidth={1.4} />
-      </div>
+    <div className={`photo ${loaded ? 'loaded' : ''} ${className}`}>
+      <Scene cat={cat} />
       {src && !failed && (
         <img
           src={src}
@@ -52,6 +68,7 @@ export function Photo({ imgKey, cat, url, w = 800, h, sizes, className = '', eag
           alt={photoAlt(imgKey)}
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
+          onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
         />
       )}
@@ -60,18 +77,35 @@ export function Photo({ imgKey, cat, url, w = 800, h, sizes, className = '', eag
   )
 }
 
-export function PriceFrom({ exp, small }) {
+export function PriceFrom({ exp, showStandard = true }) {
   const noun = exp.fromUnit === 'trip' ? exp.fromNoun : 'person'
+  const strike = showStandard && exp.fromStd > exp.from
   return (
-    <span className={`price-from ${small ? 'small' : ''}`}>
-      <span className="pf-label">from</span>
-      <strong>{aed(exp.from)}</strong>
+    <span className="price-from">
+      {strike && (
+        <s className="pf-std" aria-label={`Standard price ${aed(exp.fromStd)}`}>
+          {aed(exp.fromStd)}
+        </s>
+      )}
+      <span className="pf-main">
+        <small>from</small> <strong>{aed(exp.from)}</strong>
+      </span>
       <span className="pf-unit">per {noun}</span>
     </span>
   )
 }
 
-export function TicketCard({ exp, compact = false }) {
+export function SaveSticker({ pct, className = '' }) {
+  if (!pct) return null
+  return (
+    <span className={`save-sticker ${className}`}>
+      <small>save</small>
+      {pct}%
+    </span>
+  )
+}
+
+export function TicketCard({ exp, compact = false, showStandard = true }) {
   const cat = CAT[exp.cat]
   return (
     <a className={`ticket ${compact ? 'compact' : ''}`} href={'#x-' + exp.slug} aria-label={`${exp.name}, from ${aed(exp.from)}`}>
@@ -79,6 +113,7 @@ export function TicketCard({ exp, compact = false }) {
         <span className="chip on-photo">
           <Icon name={CAT_ICON[exp.cat]} size={14} /> {cat?.short}
         </span>
+        {showStandard && <SaveSticker pct={exp.savePct} />}
       </Photo>
       <div className="ticket-perf" aria-hidden="true" />
       <div className="ticket-body">
@@ -90,7 +125,7 @@ export function TicketCard({ exp, compact = false }) {
         </div>
         {!compact && <p className="ticket-blurb">{exp.blurb}</p>}
         <div className="ticket-foot">
-          <PriceFrom exp={exp} small />
+          <PriceFrom exp={exp} showStandard={showStandard} />
           <span className="ticket-cta" aria-hidden="true">
             View
           </span>

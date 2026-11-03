@@ -4,7 +4,7 @@ import { loadCatalogue, cachedCatalogue, supabase, onOnline, isOnline } from './
 import { BRAND, IS_ARTIFACT } from './lib/config.js'
 import { waLink } from './lib/format.js'
 import { Icon } from './components/Icon.jsx'
-import { Mascot, navigate } from './components/ui.jsx'
+import { Brand, navigate } from './components/ui.jsx'
 import Home from './pages/Home.jsx'
 import Explore from './pages/Explore.jsx'
 import Experience from './pages/Experience.jsx'
@@ -168,13 +168,7 @@ function Header({ route }) {
   return (
     <header className="site-header">
       <div className="wrap header-row">
-        <a href="#home" className="brand" aria-label="Yondo Experiences home">
-          <Mascot pose="head" alt="" className="brand-mark" />
-          <span className="brand-word">
-            <span className="bw-1">yondo</span>
-            <span className="bw-2">experiences</span>
-          </span>
-        </a>
+        <Brand />
         <nav className="main-nav" aria-label="Main">
           {nav.map(([to, label, active]) => (
             <a key={to} href={'#' + to} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>
@@ -219,13 +213,7 @@ function Footer() {
     <footer className="site-footer">
       <div className="wrap footer-grid">
         <div className="footer-brand">
-          <a href="#home" className="brand" aria-label="Yondo Experiences home">
-            <Mascot pose="head" alt="" className="brand-mark" />
-            <span className="brand-word">
-              <span className="bw-1">yondo</span>
-              <span className="bw-2">experiences</span>
-            </span>
-          </a>
+          <Brand footer />
           <p>Student-first experiences across the UAE. Real people on WhatsApp, every day of the week, around the clock.</p>
           <div className="footer-contact">
             <a href={waLink('Hi Yondo!')} target="_blank" rel="noopener">

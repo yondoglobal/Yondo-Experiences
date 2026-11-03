@@ -38,6 +38,14 @@ def excluded(att): return any(att.startswith(p) for p in EXCLUDE_PREFIX)
 missing = sorted({p['attraction'] for p in price_rows if p['attraction'] not in M and not excluded(p['attraction'])})
 if missing: print('NO META:', missing)
 
+DISCOUNT = 5.0      # default Yondo discount off the standard price (admin can change it live)
+import math
+def sell(rec, cost, fl):
+    if not rec or rec <= 0: return None
+    # Postgres round() is half away from zero
+    disc = math.floor(rec * (1 - DISCOUNT / 100) + 0.5)
+    return min(rec, max(disc, math.ceil(round((cost + fl) / (1 - FEE), 9))))
+
 def sellable(p):
     ra, rt, ca, ct = p['rec_adult'], p['rec_trip'], p['cost_adult'], p['cost_trip']
     if ra > 0 and rt > 0: return (ra + rt) * (1 - FEE) - (ca + ct) >= FLOOR
@@ -54,17 +62,20 @@ for p in price_rows:
     meta = M[att]
     if p['end'] < str(TODAY): stats['past'] += 1; continue
     if not sellable(p): stats['hidden_floor'] += 1; continue
-    adult = p['rec_adult'] or None
-    trip = p['rec_trip'] or None
-    child_floor = 0 if trip else FLOOR
-    child = p['rec_child'] if (adult and p['rec_child'] > 0 and p['rec_child'] * (1 - FEE) - p['cost_child'] >= child_floor) else None
+    combined = p['rec_adult'] > 0 and p['rec_trip'] > 0
+    adult = sell(p['rec_adult'], p['cost_adult'], 0 if combined else FLOOR)
+    trip = sell(p['rec_trip'], p['cost_trip'], FLOOR)
+    child_floor = 0 if combined else FLOOR
+    child = sell(p['rec_child'], p['cost_child'], child_floor) if (adult and p['rec_child'] > 0 and p['rec_child'] * (1 - FEE) - p['cost_child'] >= child_floor) else None
     e = exps.setdefault(att, dict(slug=slug(meta['name']), src=att, name=meta['name'], cat=meta['cat'], emirate=meta['emirate'],
                                   blurb=meta['blurb'], img=meta['img'], featured=meta['featured'], hidden=meta['hidden'], options={}))
     okey = slug(att) + '--' + slug(p['ticket'])
     o = e['options'].setdefault(okey, dict(key=okey, name=p['ticket'], unit=('person+trip' if adult and trip else 'trip' if trip else 'person'),
                                            origins=set(), periods=[]))
     o['origins'].update([x.strip() for x in p['origins'].split(',') if x.strip()])
-    o['periods'].append(dict(s=p['start'], e=p['end'], a=adult, c=child, t=trip))
+    per = dict(s=p['start'], e=p['end'], a=adult, c=child, t=trip,
+               ma=p['rec_adult'] or None, mc=(p['rec_child'] if child else None), mt=p['rec_trip'] or None)
+    o['periods'].append({k: v for k, v in per.items() if v is not None})
 
 out = []
 for e in exps.values():
@@ -79,22 +90,21 @@ for e in exps.values():
         if 'private' in n: tags.append('Private')
         elif 'sharing' in n or 'shared' in n: tags.append('Shared')
         if 'transfer' in n and 'direct reporting' not in n: tags.append('Transfers')
-        o['tags'] = tags
+        o.pop('unit', None)
         # price shown "from": cheapest current-or-future unit price
-        vals = [x['a'] or x['t'] for x in o['periods'] if (x['a'] or x['t'])]
-        o['from'] = min(vals)
+        vals = [x.get('a') or x.get('t') for x in o['periods'] if (x.get('a') or x.get('t'))]
+        o['_from'] = min(vals)
         opts.append(o)
-    opts.sort(key=lambda o: o['from'])
+    opts.sort(key=lambda o: o['_from'])
+    for o in opts: o.pop('_from')
     e['options'] = opts
-    e['from'] = opts[0]['from']
-    e['fromUnit'] = opts[0]['unit']
     out.append(e)
 
 order = list(CATS.keys())
 out.sort(key=lambda e: (order.index(e['cat']), not e['featured'], e['name']))
 os.makedirs(os.path.dirname(OUT_WEB), exist_ok=True)
-pub = dict(generated=str(TODAY), source=os.path.basename(SRC), feePct=FEE * 100, floor=FLOOR,
-           categories=[dict(id=k, **v) for k, v in CATS.items()], experiences=out)
+pub = dict(generated=str(TODAY), showStandardPrice=True, reviewsUrl='https://share.google/wpT4mj3k5yt2fROYn',
+           writeReviewUrl='https://share.google/wpT4mj3k5yt2fROYn', experiences=out)
 json.dump(pub, open(OUT_WEB, 'w'), separators=(',', ':'), ensure_ascii=False)
 
 vis = [e for e in out if not e['hidden']]

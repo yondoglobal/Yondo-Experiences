@@ -37,9 +37,9 @@ export function PassportDataPage({ profile, tierName, stampCount, example }) {
   const [l1, l2] = mrz(profile.fullName, profile.passportNo, stampCount, tierName)
   return (
     <div className="pp-data">
-      {example && <span className="example-flag">Example</span>}
       <div className="pp-data-head">
         <span>Yondo Experiences</span>
+        {example && <span className="example-flag static">Example</span>}
         <span>Digital passport</span>
       </div>
       <div className="pp-data-body">
@@ -86,7 +86,7 @@ export function PassportCover({ small }) {
     <div className={`pp-cover ${small ? 'small' : ''}`} aria-hidden="true">
       <span className="pp-cover-top">Yondo Experiences</span>
       <div className="pp-emblem">
-        <Mascot pose="head" alt="" />
+        <Mascot pose="welcomeSm" alt="" />
       </div>
       <span className="pp-cover-title">Passport</span>
       <span className="pp-cover-chip" />

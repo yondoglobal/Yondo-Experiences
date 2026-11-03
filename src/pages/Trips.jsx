@@ -11,7 +11,7 @@ const KINDS = [
   { id: 'yacht', label: 'Private yacht', icon: 'boat', img: 'yacht', cat: 'sea', blurb: 'Birthdays, sunset sails, squad days out.' },
   { id: 'desert', label: 'Private desert', icon: 'dune', img: 'desert-night', cat: 'desert', blurb: 'Your own car, camp time and pace.' },
   { id: 'road-trip', label: 'Road trip', icon: 'road', img: 'east-coast', cat: 'trips', blurb: 'Khor Fakkan viewpoint and more, transport sorted.' },
-  { id: 'group', label: 'Group plan', icon: 'squad', img: 'friends', cat: 'trips', blurb: 'Society socials, uni trips, big crews.' },
+  { id: 'group', label: 'Group plan', icon: 'squad', img: 'friends', cat: 'group', blurb: 'Society socials, uni trips, big crews.' },
   { id: 'custom', label: 'Something else', icon: 'sparkle', img: 'downtown', cat: 'city', blurb: 'Tell us the idea, we price it.' },
 ]
 const BUDGETS = ['Under AED 150 pp', 'AED 150 to 300 pp', 'AED 300 to 600 pp', 'AED 600+ pp', 'Not sure yet']
@@ -207,7 +207,7 @@ function Waitlist() {
   }
   return (
     <aside className="card waitlist" aria-labelledby="wl-title">
-      <Photo imgKey="friends" cat="trips" w={700} h={420} sizes="(max-width: 900px) 92vw, 380px" className="wl-photo" />
+      <Photo imgKey="friends" cat="group" w={700} h={420} sizes="(max-width: 900px) 92vw, 380px" className="wl-photo" />
       <div className="wl-body">
         <span className="soon">Coming soon</span>
         <h2 id="wl-title">50-seat group trips</h2>

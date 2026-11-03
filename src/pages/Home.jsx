@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../App.jsx'
-import { CATEGORIES } from '../lib/catalogue.js'
+import { CATEGORIES, recommendedRank } from '../lib/catalogue.js'
 import { BRAND } from '../lib/config.js'
 import { waLink } from '../lib/format.js'
 import { Icon, CAT_ICON } from '../components/Icon.jsx'
@@ -18,11 +18,11 @@ const QUICK = [
 
 export default function Home() {
   const { catalogue, setQuery } = useApp()
+  const reviewsUrl = catalogue.reviewsUrl || BRAND.googleReviews
+  const writeReviewUrl = catalogue.writeReviewUrl || reviewsUrl
   const [q, setQ] = useState('')
   const featured = useMemo(() => {
-    const order = ['global-village', 'img-worlds-of-adventure', 'desert-safari-red-sands-camp', 'shared-yacht-tour', 'ski-dubai', 'burj-khalifa-at-the-top', 'buggy-quad-bike-safari', 'aquaventure-waterpark', 'jet-ski-dubai-harbour', 'aya-universe', 'ferrari-world-abu-dhabi', 'yas-island-multi-park-pass', 'musandam-day-trip-oman', 'abu-dhabi-grand-prix-2026']
-    const rank = (s) => (order.indexOf(s) + 1 || 99)
-    return catalogue.experiences.filter((e) => e.featured).sort((a, b) => rank(a.slug) - rank(b.slug))
+    return catalogue.experiences.filter((e) => e.featured).sort((a, b) => recommendedRank(a) - recommendedRank(b))
   }, [catalogue])
   const counts = useMemo(() => {
     const c = {}
@@ -52,9 +52,13 @@ export default function Home() {
         <div className="wrap hero-grid">
           <div className="hero-copy">
             <h1 className="hero-title">
-              <span>Make the</span>
-              <span>weekend</span>
-              <span>count.</span>
+              Make the weekend{' '}
+              <span className="hero-accent">
+                count.
+                <svg className="swoosh" viewBox="0 0 320 40" aria-hidden="true" preserveAspectRatio="none">
+                  <path d="M4 30 C80 8 200 4 316 18" />
+                </svg>
+              </span>
             </h1>
             <p className="hero-sub">
               Theme parks, desert nights, yachts and day trips across the UAE. Pick a plan, we confirm it on WhatsApp, and you pay only once
@@ -117,13 +121,21 @@ export default function Home() {
               <span>Licence no. {BRAND.licence}</span>
             </div>
           </div>
-          <a className="trust-item" href={BRAND.googleReviews} target="_blank" rel="noopener">
+          <div className="trust-item">
             <Icon name="star" size={26} />
             <div>
-              <strong>{BRAND.googleReviewCount} Google reviews</strong>
-              <span className="link-like">Read them on Google</span>
+              <strong>Reviewed on Google</strong>
+              <span>
+                <a href={reviewsUrl} target="_blank" rel="noopener">
+                  Read
+                </a>{' '}
+                or{' '}
+                <a href={writeReviewUrl} target="_blank" rel="noopener">
+                  leave a review
+                </a>
+              </span>
             </div>
-          </a>
+          </div>
           <a className="trust-item" href={waLink('Hi Yondo!')} target="_blank" rel="noopener">
             <Icon name="whatsapp" size={26} />
             <div>
@@ -166,14 +178,14 @@ export default function Home() {
         </div>
       </section>
 
-      <FeaturedRow items={featured} />
+      <FeaturedRow items={featured} showStandard={catalogue.showStandard} />
 
       <section className="section how">
         <div className="wrap how-grid">
           <div className="how-intro">
             <h2>How booking works</h2>
             <p>No checkout roulette. A real person checks your slot with the supplier before you pay a dirham.</p>
-            <Mascot pose="pointUp" alt="" className="how-mascot" loading="lazy" />
+            <Mascot pose="pointUp" alt="" className="how-mascot" />
           </div>
           <ol className="steps">
             <li>
@@ -254,7 +266,7 @@ export default function Home() {
               ['Private yachts', 'Birthdays, sunset sails and squad days out. Tell us the date and headcount and we find the boat.', 'yacht', 'sea'],
               ['Private desert trips', 'Your own car, your own camp time, your own pace. Good for groups who want the dunes to themselves.', 'desert-night', 'desert'],
               ['Road trips', 'Khor Fakkan viewpoint and other days out beyond Dubai, with transport sorted.', 'east-coast', 'trips'],
-              ['50-seat group trips', 'Big coach trips with your uni crowd are coming soon. Join the list to hear first.', 'friends', 'trips'],
+              ['50-seat group trips', 'Big coach trips with your uni crowd are coming soon. Join the list to hear first.', 'friends', 'group'],
             ].map(([t, d, img, cat]) => (
               <a key={t} className="curated-card" href="#trips">
                 <Photo imgKey={img} cat={cat} w={560} h={380} sizes="(max-width: 700px) 90vw, 280px" />
@@ -270,15 +282,18 @@ export default function Home() {
 
       <section className="reviews-band">
         <div className="wrap reviews-grid">
-          <Mascot pose="selfie" alt="" className="reviews-mascot" loading="lazy" />
+          <Mascot pose="selfieThumb" alt="" className="reviews-mascot" />
           <div>
             <h2>Don't take our word for it</h2>
-            <p>
-              {BRAND.googleReviewCount} people have reviewed Yondo on Google. Read them there, unfiltered, before you book anything.
-            </p>
-            <a className="btn dark" href={BRAND.googleReviews} target="_blank" rel="noopener">
-              <Icon name="star" size={18} /> Read our Google reviews
-            </a>
+            <p>Read what students say about us on Google, unfiltered. Been on a Yondo plan? Your review helps the next squad decide.</p>
+            <div className="btn-row">
+              <a className="btn dark" href={reviewsUrl} target="_blank" rel="noopener">
+                <Icon name="star" size={18} /> Read our Google reviews
+              </a>
+              <a className="btn outline-dark" href={writeReviewUrl} target="_blank" rel="noopener">
+                Leave a review
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -288,7 +303,7 @@ export default function Home() {
   )
 }
 
-function FeaturedRow({ items }) {
+function FeaturedRow({ items, showStandard }) {
   const ref = useRef(null)
   const scroll = (dir) => ref.current?.scrollBy({ left: dir * ref.current.clientWidth * 0.8, behavior: 'smooth' })
   return (
@@ -309,7 +324,7 @@ function FeaturedRow({ items }) {
       <div className="h-scroll" ref={ref}>
         <div className="h-scroll-inner">
           {items.map((e) => (
-            <TicketCard key={e.slug} exp={e} />
+            <TicketCard key={e.slug} exp={e} showStandard={showStandard} />
           ))}
         </div>
       </div>

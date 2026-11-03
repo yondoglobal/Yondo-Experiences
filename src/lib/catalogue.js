@@ -12,6 +12,13 @@ export const CATEGORIES = [
 ]
 export const CAT = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]))
 
+// Student staples first wherever we sort by "recommended"
+export const FEATURED_ORDER = ['global-village', 'img-worlds-of-adventure', 'desert-safari-red-sands-camp', 'shared-yacht-tour', 'ski-dubai', 'burj-khalifa-at-the-top', 'buggy-quad-bike-safari', 'aquaventure-waterpark', 'jet-ski-dubai-harbour', 'aya-universe', 'ferrari-world-abu-dhabi', 'yas-island-multi-park-pass', 'musandam-day-trip-oman', 'abu-dhabi-grand-prix-2026']
+export function recommendedRank(e) {
+  const i = FEATURED_ORDER.indexOf(e.slug)
+  return i >= 0 ? i : e.featured ? 50 : 100
+}
+
 // ---------- dates (UAE time)
 export function todayUAE() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai' }).format(new Date())
@@ -70,6 +77,11 @@ function unitOf(periods) {
   return 'trip'
 }
 
+// Our price and the standard (supplier recommended retail) price for the lead unit of a period
+function leadPrice(p, unit) {
+  return unit === 'trip' ? [p.t, p.mt || p.t] : [p.a, p.ma || p.a]
+}
+
 export function prepare(raw) {
   const today = todayUAE()
   const experiences = (raw.experiences || [])
@@ -80,7 +92,8 @@ export function prepare(raw) {
           const periods = (o.periods || []).filter((p) => p.e >= today)
           if (!periods.length) return null
           const unit = unitOf(periods)
-          const vals = periods.map((p) => (unit === 'trip' ? p.t : p.a)).filter(Boolean)
+          const cheapest = periods.filter((p) => leadPrice(p, unit)[0]).reduce((m, p) => (leadPrice(p, unit)[0] < leadPrice(m, unit)[0] ? p : m))
+          const [from, fromStd] = leadPrice(cheapest, unit)
           return {
             key: o.key,
             name: o.name,
@@ -91,8 +104,10 @@ export function prepare(raw) {
             addon: ADDON.test(o.name),
             guests: guestRange(o.name),
             hasChild: periods.some((p) => p.c),
-            from: Math.min(...vals),
-            tripFrom: unit === 'person+trip' ? Math.min(...periods.map((p) => p.t || Infinity)) : null,
+            from,
+            fromStd,
+            tripFrom: unit === 'person+trip' ? cheapest.t : null,
+            tripStd: unit === 'person+trip' ? cheapest.mt || cheapest.t : null,
             firstDate: periods.reduce((m, p) => (p.s < m ? p.s : m), periods[0].s),
             lastDate: periods.reduce((m, p) => (p.e > m ? p.e : m), periods[0].e),
           }
@@ -114,13 +129,22 @@ export function prepare(raw) {
         sort: e.sort || 0,
         options,
         from: lead.from,
+        fromStd: lead.fromStd,
+        savePct: lead.fromStd > lead.from ? Math.round((1 - lead.from / lead.fromStd) * 100) : 0,
         fromUnit: lead.unit,
         fromNoun: lead.unit === 'trip' ? tripNoun(lead.name, e.cat) : 'person',
       }
     })
     .filter(Boolean)
   const tiers = raw.tiers || DEFAULT_TIERS
-  return { experiences, tiers, bySlug: Object.fromEntries(experiences.map((e) => [e.slug, e])) }
+  return {
+    experiences,
+    tiers,
+    showStandard: raw.showStandardPrice !== false,
+    reviewsUrl: raw.reviewsUrl || null,
+    writeReviewUrl: raw.writeReviewUrl || raw.reviewsUrl || null,
+    bySlug: Object.fromEntries(experiences.map((e) => [e.slug, e])),
+  }
 }
 
 export const DEFAULT_TIERS = [
@@ -146,16 +170,27 @@ export function estimate(option, date, adults, children) {
   const p = periodFor(option, date)
   if (!p) return null
   if (option.unit === 'trip') {
-    return { unit: 'trip', priceAdult: p.t, priceChild: null, priceTrip: null, subtotal: round2(adults * p.t), units: adults }
+    const std = p.mt || p.t
+    return {
+      unit: 'trip', priceAdult: p.t, priceChild: null, priceTrip: null, standardAdult: std,
+      subtotal: round2(adults * p.t), standardSubtotal: round2(adults * std), units: adults,
+    }
   }
   const child = p.c || null
-  const sub = adults * p.a + children * (child || p.a) + (option.unit === 'person+trip' ? p.t || 0 : 0)
+  const childStd = child ? p.mc || child : null
+  const withTrip = option.unit === 'person+trip'
+  const sub = adults * p.a + children * (child || p.a) + (withTrip ? p.t || 0 : 0)
+  const std = adults * (p.ma || p.a) + children * (childStd || p.ma || p.a) + (withTrip ? p.mt || p.t || 0 : 0)
   return {
     unit: option.unit,
     priceAdult: p.a,
     priceChild: child,
-    priceTrip: option.unit === 'person+trip' ? p.t : null,
+    priceTrip: withTrip ? p.t : null,
+    standardAdult: p.ma || p.a,
+    standardChild: childStd,
+    standardTrip: withTrip ? p.mt || p.t : null,
     subtotal: round2(sub),
+    standardSubtotal: round2(std),
     units: adults + children,
   }
 }

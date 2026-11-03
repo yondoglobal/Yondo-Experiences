@@ -84,7 +84,7 @@ function ExperienceView({ exp }) {
             </div>
             <div className="ticket-grid four">
               {related.map((e) => (
-                <TicketCard key={e.slug} exp={e} compact />
+                <TicketCard key={e.slug} exp={e} compact showStandard={catalogue.showStandard} />
               ))}
             </div>
           </div>
@@ -103,7 +103,8 @@ function defaultDate(option) {
 }
 
 function BookingFlow({ exp }) {
-  const { online, refCode, setRefCode, session } = useApp()
+  const { online, refCode, setRefCode, session, catalogue } = useApp()
+  const showStd = catalogue.showStandard
   const firstMain = exp.options.find((o) => !o.addon) || exp.options[0]
   const [optKey, setOptKey] = useState(firstMain.key)
   const option = exp.options.find((o) => o.key === optKey) || firstMain
@@ -158,6 +159,7 @@ function BookingFlow({ exp }) {
 
   const live = quote && quote.ok ? quote : null
   const total = live ? live.total : est?.subtotal
+  const standard = live ? live.standardSubtotal : est?.standardSubtotal
   const discount = live ? live.discount : 0
   const noun = tripNoun(option.name, exp.cat)
   const nounPl = tripNoun(option.name, exp.cat, true)
@@ -174,6 +176,7 @@ function BookingFlow({ exp }) {
     groupSize: option.unit === 'trip' ? groupSize : null,
     pickup,
     total,
+    standard: showStd && standard > total ? standard : null,
     discount,
     code: live?.codeOk ? live.code : codeOpen && code ? code.toUpperCase() : '',
   }
@@ -204,6 +207,7 @@ function BookingFlow({ exp }) {
                   )}
                 </span>
                 <span className="option-price">
+                  {showStd && o.fromStd > o.from && <s>{aed(o.fromStd)}</s>}
                   {o.unit === 'trip' ? (
                     <>
                       <strong>{aed(o.from)}</strong>
@@ -315,7 +319,7 @@ function BookingFlow({ exp }) {
                 </Field>
               )}
 
-              <PriceLines est={est} live={live} option={option} noun={noun} nounPl={nounPl} adults={adults} children={option.hasChild ? children : 0} date={date} />
+              <PriceLines est={est} live={live} option={option} noun={noun} nounPl={nounPl} adults={adults} children={option.hasChild ? children : 0} date={date} showStd={showStd} />
 
               {unavailable ? (
                 <Notice tone="error">{quote?.error || 'This ticket isn’t available on that date. Try another date or ticket.'}</Notice>
@@ -345,8 +349,11 @@ function BookingFlow({ exp }) {
   )
 }
 
-function PriceLines({ est, live, option, noun, nounPl, adults, children, date }) {
+function PriceLines({ est, live, option, noun, nounPl, adults, children, date, showStd }) {
   if (!est) return null
+  const total = live ? live.total : est.subtotal
+  const std = live ? live.standardSubtotal : est.standardSubtotal
+  const saving = showStd && std > total ? std - total : 0
   const pa = live?.priceAdult ?? est.priceAdult
   const pc = live?.priceChild ?? est.priceChild
   const pt = live?.priceTrip ?? est.priceTrip
@@ -392,10 +399,21 @@ function PriceLines({ est, live, option, noun, nounPl, adults, children, date })
           <span>−{aed(live.discount)}</span>
         </div>
       )}
+      {saving > 0 && (
+        <div className="pl std">
+          <span>Standard price</span>
+          <s>{aed(std)}</s>
+        </div>
+      )}
       <div className="pl total">
-        <span>Total</span>
-        <span>{aed(live ? live.total : est.subtotal)}</span>
+        <span>Your price</span>
+        <span>{aed(total)}</span>
       </div>
+      {saving > 0 && (
+        <div className="you-save">
+          <Icon name="sparkle" size={14} /> You save {aed(saving)} ({Math.round((saving / std) * 100)}%)
+        </div>
+      )}
     </div>
   )
 }
@@ -529,7 +547,7 @@ function BookingDone({ exp, summary, result, onAnother, session }) {
     `Date: ${niceDate(summary.date)}`,
     `Guests: ${guests}`,
     summary.pickup ? `Coming from: ${summary.pickup}` : '',
-    `Quoted total: ${aed(result?.total ?? summary.total)}${summary.code ? ` (code ${summary.code})` : ''}`,
+    `Quoted total: ${aed(result?.total ?? summary.total)}${summary.code ? ` (code ${summary.code})` : ''}${summary.standard ? `, standard price ${aed(summary.standard)}` : ''}`,
     c.name ? `Name: ${c.name}` : '',
   ].filter(Boolean)
   const wa = waLink(lines.join('\n'))
@@ -576,8 +594,16 @@ function BookingDone({ exp, summary, result, onAnother, session }) {
               <dd>{guests}</dd>
             </div>
             <div>
-              <dt>Quoted total</dt>
-              <dd>{aed(result?.total ?? summary.total)}</dd>
+              <dt>Your price</dt>
+              <dd>
+                {aed(result?.total ?? summary.total)}
+                {summary.standard ? (
+                  <span className="dd-save">
+                    {' '}
+                    <s>{aed(summary.standard)}</s> You save {aed(summary.standard - (result?.total ?? summary.total))}
+                  </span>
+                ) : null}
+              </dd>
             </div>
           </dl>
         </div>
