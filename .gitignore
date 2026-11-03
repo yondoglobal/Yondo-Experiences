@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-artifact
+*.xlsx
+*.pdf
+.env*
+price_rows.json
+prices_compact.json
