@@ -234,3 +234,28 @@ EXCLUDE_PREFIX = ["5 Emirates + Indian Ocean Tour (Russian", "Abu Dhabi City Tou
                   "Abu Dhabi City Tour with transfer from all emirates", "Classic Dubai City Tour with Spanish",
                   "Modern Dubai City Tour", "Night Dubai city tour with dinner cruise (Russian",
                   "Two Pearls of the East", "Private Transfers & Chauffeur", "Sharing transfer to Dubai Mall"]
+
+# --- Photo per experience (keys in web/src/lib/photos.js). Place-specific where a free-licence photo of
+# the actual place exists; otherwise an accurate photo of the activity. Admin can replace any of these.
+PHOTO = {
+    "Ferrari World Abu Dhabi": "ferrari-world", "Yas Island multi-park pass": "ferrari-world",
+    "LEGOLAND Dubai": "legoland", "SeaWorld Abu Dhabi": "seaworld", "Aquaventure Waterpark": "atlantis",
+    "Abu Dhabi desert safari": "desert-abu-dhabi", "Falconry & nature safari": "falcon",
+    "Overnight safari + hot air balloon": "balloon-dubai", "Hot air balloon flight": "balloon-dubai",
+    "RAK buggy & ATV safari": "desert-atv",
+    "Deep sea fishing, Abu Dhabi": "fishing-boat", "Deep sea fishing, Dubai": "fishing-boat",
+    "Dhow dinner cruise, Dubai Marina": "marina-dhow", "Dubai Water Canal dhow cruise": "water-canal",
+    "Jet ski, Abu Dhabi": "jetski-sunset", "Speed boat tour": "marina-day",
+    "Sky Views Dubai": "sky-views", "The Dubai Balloon at Atlantis": "atlantis",
+    "XLine Dubai Marina zipline": "marina-aerial",
+    "Dubai Aquarium & Underwater Zoo": "dubai-aquarium", "Dubai Butterfly Garden": "butterfly",
+    "Dubai Crocodile Park": "crocodile", "Dubai Safari Park": "safari-park", "The Green Planet": "green-planet",
+    "Zayed National Museum": "zayed-museum", "Natural History Museum Abu Dhabi": "nhm-abu-dhabi",
+    "Abu Dhabi city tour": "grand-mosque", "Dubai city tour": "museum-future",
+    "Wakeboarding": "jetski-sunset", "Wakesurfing": "jetski-sunset", "Al Shindagha Museum": "dhow",
+}
+for _m in M.values():
+    if _m["name"] in PHOTO:
+        _m["img"] = PHOTO[_m["name"]]
+_missing = set(PHOTO) - {m["name"] for m in M.values()}
+assert not _missing, _missing

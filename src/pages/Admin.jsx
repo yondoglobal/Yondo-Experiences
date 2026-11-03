@@ -5,7 +5,26 @@ import { IS_ARTIFACT, BRAND } from '../lib/config.js'
 import { aed, niceDate, niceDateTime, waLink, guestLine, normalisePhone } from '../lib/format.js'
 import { CATEGORIES, CAT, todayUAE } from '../lib/catalogue.js'
 import { Icon } from '../components/Icon.jsx'
-import { Field, Notice, Sheet, CopyButton, Mascot } from '../components/ui.jsx'
+import { Field, Notice, Sheet, CopyButton, Mascot, Photo } from '../components/ui.jsx'
+import { PLACE_PHOTOS } from '../lib/photos.js'
+import Pricing from './admin/Pricing.jsx'
+import Website from './admin/Website.jsx'
+import ImageField from './admin/ImageField.jsx'
+import { CODE_COMMISSION_TYPES } from './admin/money.js'
+
+export function commissionTerms(type, value) {
+  const v = Number(value) || 0
+  switch (type) {
+    case 'sale_pct':
+      return `${v}% of the sale`
+    case 'fixed_ticket':
+      return `AED ${v} per ticket`
+    case 'fixed_booking':
+      return `AED ${v} per booking`
+    default:
+      return `${v}% of profit`
+  }
+}
 
 const STATUS = {
   new: ['New', 'Check availability'],
@@ -52,35 +71,75 @@ export default function Admin() {
 }
 
 function AdminSignIn({ onDemo }) {
+  const [mode, setMode] = useState('password')
   const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [show, setShow] = useState(false)
   const [sent, setSent] = useState(false)
   const [code, setCode] = useState('')
   const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const addr = email.trim().toLowerCase()
+
+  async function passwordSignIn(e) {
+    e.preventDefault()
+    if (IS_ARTIFACT) return setMsg('Sign-in works on the live site, not in this preview.')
+    if (!addr || !pw) return setMsg('Enter your admin email and password.')
+    setBusy(true)
+    setMsg('')
+    const { error } = await supabase.auth.signInWithPassword({ email: addr, password: pw })
+    setBusy(false)
+    if (error) setMsg(/rate|many/i.test(error.message) ? 'Too many attempts. Wait a minute and try again.' : 'That email and password don’t match.')
+  }
+
   return (
     <div className="wrap admin-gate">
       <div className="card">
         <Mascot pose="phoneThumbs" alt="" className="gate-mascot" />
         <h1>Yondo admin</h1>
-        <p className="muted">Bookings, codes, commissions and prices. Admin emails only.</p>
-        {!sent ? (
+        <p className="muted">Bookings, prices, offers, codes and the website. Admin accounts only.</p>
+        {mode === 'password' ? (
+          <form onSubmit={passwordSignIn}>
+            <Field id="ad-email" label="Admin email">
+              <input id="ad-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+            </Field>
+            <Field id="ad-pw" label="Password">
+              <div className="pw-wrap">
+                <input id="ad-pw" type={show ? 'text' : 'password'} value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
+                <button type="button" className="link-btn" onClick={() => setShow(!show)} aria-pressed={show}>
+                  {show ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </Field>
+            <button className="btn gold block" disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+            <button type="button" className="link-btn center" onClick={() => { setMode('code'); setMsg('') }}>
+              Email me a one-time code instead
+            </button>
+          </form>
+        ) : !sent ? (
           <form
             onSubmit={async (e) => {
               e.preventDefault()
-              const r = await sendSignInEmail(email.trim().toLowerCase(), 'admin')
+              const r = await sendSignInEmail(addr, 'admin')
               if (r.ok) setSent(true)
               else setMsg(r.error)
             }}
           >
-            <Field id="ad-email" label="Admin email">
-              <input id="ad-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+            <Field id="ad-email2" label="Admin email">
+              <input id="ad-email2" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
             </Field>
-            <button className="btn gold block">Email me a sign-in link</button>
+            <button className="btn gold block">Email me a code</button>
+            <button type="button" className="link-btn center" onClick={() => { setMode('password'); setMsg('') }}>
+              Use my password
+            </button>
           </form>
         ) : (
           <form
             onSubmit={async (e) => {
               e.preventDefault()
-              const r = await verifyCode(email.trim().toLowerCase(), code)
+              const r = await verifyCode(addr, code)
               if (!r.ok) setMsg(r.error)
             }}
           >
@@ -104,7 +163,8 @@ function AdminSignIn({ onDemo }) {
 
 // ------------------------------------------------------------ dashboard
 function Dashboard({ demo, onExitDemo }) {
-  const { showToast } = useApp()
+  const { showToast, session } = useApp()
+  const tempPassword = !demo && !!session?.user?.user_metadata?.temp_password
   const [tab, setTab] = useState('inbox')
   const [d, setD] = useState({ bookings: [], trips: [], waitlist: [], codes: [], experiences: [], settings: null, imports: [] })
   const [loading, setLoading] = useState(true)
@@ -163,8 +223,10 @@ function Dashboard({ demo, onExitDemo }) {
   const tabs = [
     ['inbox', 'Bookings', newCount],
     ['quotes', 'Quote requests', newTrips],
+    ['pricing', 'Pricing & offers', 0],
+    ['catalogue', 'Catalogue & photos', 0],
     ['codes', 'Referral codes', 0],
-    ['catalogue', 'Catalogue & prices', 0],
+    ['website', 'Website', 0],
     ['waitlist', 'Waitlist', 0],
     ['settings', 'Settings', 0],
   ]
@@ -206,6 +268,14 @@ function Dashboard({ demo, onExitDemo }) {
         </div>
       </div>
       <div className="wrap admin-body">
+        {tempPassword && tab !== 'settings' && (
+          <Notice tone="info">
+            You're signed in with a temporary password.{' '}
+            <button className="link-btn" onClick={() => setTab('settings')}>
+              Set your own in Settings
+            </button>
+          </Notice>
+        )}
         {loading ? (
           <p className="muted">Loading…</p>
         ) : tab === 'inbox' ? (
@@ -214,6 +284,10 @@ function Dashboard({ demo, onExitDemo }) {
           <Quotes trips={d.trips} demo={demo} onChange={load} />
         ) : tab === 'codes' ? (
           <Codes codes={d.codes} settings={d.settings} demo={demo} onChange={load} />
+        ) : tab === 'pricing' ? (
+          <Pricing settings={d.settings} demo={demo} onChange={load} />
+        ) : tab === 'website' ? (
+          <Website settings={d.settings} demo={demo} onChange={load} />
         ) : tab === 'catalogue' ? (
           <Catalogue experiences={d.experiences} imports={d.imports} settings={d.settings} demo={demo} onChange={load} />
         ) : tab === 'waitlist' ? (
@@ -450,7 +524,7 @@ function BookingSheet({ b, settings, demo, onClose, onChange }) {
               {b.code && (
                 <>
                   <dt>
-                    Commission to {b.code} ({Number(b.commission_share)}%)
+                    Commission to {b.code} ({commissionTerms(b.commission_type, b.commission_value ?? b.commission_share)})
                   </dt>
                   <dd>−{aed(b.commission)}</dd>
                 </>
@@ -617,7 +691,7 @@ function Quotes({ trips, demo, onChange }) {
 // ------------------------------------------------------------ codes
 function Codes({ codes, settings, demo, onChange }) {
   const { showToast } = useApp()
-  const blank = { code: '', owner_name: '', owner_contact: '', kind: 'ambassador', customer_discount_pct: settings?.default_discount_pct ?? 5, commission_share_pct: settings?.default_commission_share ?? 30, max_uses: '', expires_at: '' }
+  const blank = { code: '', owner_name: '', owner_contact: '', kind: 'ambassador', customer_discount_pct: settings?.default_discount_pct ?? 5, commission_type: 'profit_pct', commission_value: settings?.default_commission_share ?? 30, max_uses: '', expires_at: '' }
   const [f, setF] = useState(blank)
   const [err, setErr] = useState('')
   const set = (k) => (e) => setF({ ...f, [k]: k === 'code' ? e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') : e.target.value })
@@ -626,7 +700,12 @@ function Codes({ codes, settings, demo, onChange }) {
     e.preventDefault()
     if (demo) return showToast('Example data. Changes are not saved.', 'error')
     if (f.code.length < 3 || !f.owner_name.trim()) return setErr('Add a code (3+ characters) and who owns it.')
-    const row = { ...f, max_uses: f.max_uses ? parseInt(f.max_uses) : null, expires_at: f.expires_at || null, customer_discount_pct: Number(f.customer_discount_pct), commission_share_pct: Number(f.commission_share_pct) }
+    const cv = Number(f.commission_value) || 0
+    if (f.commission_type.endsWith('pct') && cv > 100) return setErr('A percentage commission can’t be over 100%.')
+    const row = {
+      ...f, max_uses: f.max_uses ? parseInt(f.max_uses) : null, expires_at: f.expires_at || null, customer_discount_pct: Number(f.customer_discount_pct),
+      commission_value: cv, commission_share_pct: f.commission_type === 'profit_pct' ? cv : 0,
+    }
     const { error } = await supabase.from('promo_codes').insert(row)
     if (error) return setErr(/duplicate/.test(error.message) ? 'That code already exists.' : 'Could not create the code.')
     setErr('')
@@ -645,8 +724,8 @@ function Codes({ codes, settings, demo, onChange }) {
       <form className="card code-form" onSubmit={create}>
         <h2>New referral code</h2>
         <p className="muted small">
-          The customer discount only applies where the ticket has margin to spare, and never pushes a booking below your profit floor. Commission is a
-          share of Yondo's net profit on each paid booking.
+          The customer discount only applies where the ticket has margin to spare, and never pushes Yondo's profit (after this commission) below your
+          floor. Commission is owed on paid and completed bookings.
         </p>
         <div className="form-row">
           <Field id="c-code" label="Code">
@@ -672,8 +751,20 @@ function Codes({ codes, settings, demo, onChange }) {
           <Field id="c-disc" label="Customer discount %">
             <input id="c-disc" type="number" min={0} max={50} step="0.5" value={f.customer_discount_pct} onChange={set('customer_discount_pct')} />
           </Field>
-          <Field id="c-share" label="Commission (% of profit)">
-            <input id="c-share" type="number" min={0} max={100} step="1" value={f.commission_share_pct} onChange={set('commission_share_pct')} />
+          <Field id="c-ctype" label="Commission paid as">
+            <div className="select-wrap full">
+              <select id="c-ctype" value={f.commission_type} onChange={set('commission_type')}>
+                {CODE_COMMISSION_TYPES.map(([k, l]) => (
+                  <option key={k} value={k}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+              <Icon name="down" size={16} />
+            </div>
+          </Field>
+          <Field id="c-share" label={f.commission_type.endsWith('pct') ? 'Commission %' : 'Commission AED'}>
+            <input id="c-share" type="number" min={0} step="0.5" value={f.commission_value} onChange={set('commission_value')} />
           </Field>
           <Field id="c-max" label="Max uses" optional>
             <input id="c-max" type="number" min={1} value={f.max_uses} onChange={set('max_uses')} />
@@ -712,7 +803,7 @@ function Codes({ codes, settings, demo, onChange }) {
                   </td>
                   <td className="num">
                     {Number(c.customer_discount_pct)}% off
-                    <small>{Number(c.commission_share_pct)}% of profit</small>
+                    <small>{commissionTerms(c.commission_type, c.commission_value ?? c.commission_share_pct)}</small>
                   </td>
                   <td className="num">
                     {c.uses}
@@ -744,12 +835,25 @@ function Codes({ codes, settings, demo, onChange }) {
 }
 
 // ------------------------------------------------------------ catalogue
+function photoKind(e) {
+  if (e.image_url) return ['own', 'Your photo']
+  if (PLACE_PHOTOS.has(e.image_key)) return ['place', 'Photo of the place']
+  return ['activity', 'Activity photo']
+}
+
 function Catalogue({ experiences, imports, settings, demo, onChange }) {
   const siteD = Number(settings?.site_discount_pct ?? 5)
   const { showToast } = useApp()
   const [filter, setFilter] = useState('')
+  const [view, setView] = useState('all')
   const [edit, setEdit] = useState(null)
-  const list = experiences.filter((e) => !filter || (e.name + e.category + e.source_name).toLowerCase().includes(filter.toLowerCase()))
+  const needPhoto = experiences.filter((e) => !e.hidden && photoKind(e)[0] === 'activity').length
+  const list = experiences.filter((e) => {
+    if (view === 'photo' && (e.hidden || photoKind(e)[0] !== 'activity')) return false
+    if (view === 'hidden' && !e.hidden) return false
+    if (view === 'featured' && !e.featured) return false
+    return !filter || (e.name + e.category + e.source_name).toLowerCase().includes(filter.toLowerCase())
+  })
 
   async function save(id, fields, msg = 'Saved') {
     if (demo) return showToast('Example data. Changes are not saved.', 'error')
@@ -764,16 +868,30 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
       <PriceImport imports={imports} demo={demo} onDone={onChange} />
       <div className="card">
         <div className="section-head">
-          <h2>Experiences</h2>
+          <div>
+            <h2>Experiences</h2>
+            <p className="muted small">
+              Names, descriptions, photos and what shows on the site. {needPhoto > 0 && `${needPhoto} live experiences use an activity photo rather than a photo of the actual place; upload the supplier's photo to replace it.`}
+            </p>
+          </div>
+        </div>
+        <div className="admin-filters">
+          <div className="seg">
+            {[['all', 'All'], ['photo', `Needs a real photo (${needPhoto})`], ['featured', 'Featured'], ['hidden', 'Hidden']].map(([id, l]) => (
+              <button key={id} className={view === id ? 'on' : ''} onClick={() => setView(id)}>
+                {l}
+              </button>
+            ))}
+          </div>
           <input className="admin-search" placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter experiences" />
         </div>
         <div className="table-wrap">
           <table className="admin-table">
             <thead>
               <tr>
+                <th>Photo</th>
                 <th>Name on site</th>
                 <th>Category</th>
-                <th>Emirate</th>
                 <th className="num">Yondo discount</th>
                 <th className="num">Room at your floor</th>
                 <th>Featured</th>
@@ -782,60 +900,112 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
               </tr>
             </thead>
             <tbody>
-              {list.map((e) => (
-                <tr key={e.id} className={e.hidden ? 'dim' : ''}>
-                  <td>
-                    <strong>{e.name}</strong>
-                    <small>{e.source_name}</small>
-                  </td>
-                  <td>{CAT[e.category]?.label || e.category}</td>
-                  <td>{e.emirate}</td>
-                  <td className="num">
-                    {e.discount_pct != null ? `${Number(e.discount_pct)}%` : `${siteD}%`}
-                    <small>{e.discount_pct != null ? 'own setting' : 'site default'}</small>
-                  </td>
-                  <td className="num">
-                    {e.room?.room_min_pct != null ? `${Math.max(0, e.room.room_min_pct)}–${Math.max(0, e.room.room_max_pct)}%` : '—'}
-                    <small>max % off before the floor</small>
-                  </td>
-                  <td>
-                    <label className="switch">
-                      <input type="checkbox" checked={e.featured} onChange={() => save(e.id, { featured: !e.featured })} />
-                      <span />
-                      <span className="sr-only">Featured</span>
-                    </label>
-                  </td>
-                  <td>
-                    <label className="switch">
-                      <input type="checkbox" checked={!e.hidden} onChange={() => save(e.id, { hidden: !e.hidden }, e.hidden ? 'Now showing on the site' : 'Hidden from the site')} />
-                      <span />
-                      <span className="sr-only">Shown on site</span>
-                    </label>
-                  </td>
-                  <td>
-                    <button className="btn ghost small" onClick={() => setEdit(e)}>
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {list.map((e) => {
+                const [kind, kindLabel] = photoKind(e)
+                return (
+                  <tr key={e.id} className={e.hidden ? 'dim' : ''}>
+                    <td>
+                      <button className="thumb-btn" onClick={() => setEdit(e)} aria-label={`Change photo for ${e.name}`}>
+                        <Photo imgKey={e.image_key} url={e.image_url} cat={e.category} w={160} h={110} className="thumb" />
+                      </button>
+                      <small className={`photo-kind k-${kind}`}>{kindLabel}</small>
+                    </td>
+                    <td>
+                      <strong>{e.name}</strong>
+                      <small>
+                        {e.emirate} · {e.source_name}
+                      </small>
+                      {e.offer_label && <span className="offer-tag inline">{e.offer_label}</span>}
+                    </td>
+                    <td>{CAT[e.category]?.label || e.category}</td>
+                    <td className="num">
+                      {e.discount_pct != null ? `${Number(e.discount_pct)}%` : `${siteD}%`}
+                      <small>{e.discount_pct != null ? 'own setting' : 'site default'}</small>
+                    </td>
+                    <td className="num">
+                      {e.room?.room_min_pct != null ? `${Math.max(0, e.room.room_min_pct)}–${Math.max(0, e.room.room_max_pct)}%` : '—'}
+                      <small>max % off before the floor</small>
+                    </td>
+                    <td>
+                      <label className="switch">
+                        <input type="checkbox" checked={e.featured} onChange={() => save(e.id, { featured: !e.featured }, e.featured ? 'Removed from favourites' : 'Added to favourites on the home page')} />
+                        <span />
+                        <span className="sr-only">Featured</span>
+                      </label>
+                    </td>
+                    <td>
+                      <label className="switch">
+                        <input type="checkbox" checked={!e.hidden} onChange={() => save(e.id, { hidden: !e.hidden }, e.hidden ? 'Now showing on the site' : 'Hidden from the site')} />
+                        <span />
+                        <span className="sr-only">Shown on site</span>
+                      </label>
+                    </td>
+                    <td>
+                      <button className="btn ghost small" onClick={() => setEdit(e)}>
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </div>
-      {edit && <EditExperience e={edit} siteD={siteD} onClose={() => setEdit(null)} onSave={(fields) => { save(edit.id, fields); setEdit(null) }} />}
+      {edit && (
+        <EditExperience
+          e={edit}
+          siteD={siteD}
+          demo={demo}
+          onClose={() => setEdit(null)}
+          onSave={(fields) => {
+            save(edit.id, fields)
+            setEdit(null)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function EditExperience({ e, siteD, onClose, onSave }) {
-  const [f, setF] = useState({ name: e.name, category: e.category, emirate: e.emirate || '', blurb: e.blurb || '', image_url: e.image_url || '', sort: e.sort || 0, discount_pct: e.discount_pct ?? '' })
+function EditExperience({ e, siteD, demo, onClose, onSave }) {
+  const [f, setF] = useState({
+    name: e.name, category: e.category, emirate: e.emirate || '', blurb: e.blurb || '', image_url: e.image_url || '', image_key: e.image_key || '',
+    image_credit: e.image_credit || '', offer_label: e.offer_label || '', sort: e.sort || 0, discount_pct: e.discount_pct ?? '',
+  })
   const set = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
   return (
     <Sheet open onClose={onClose} title={`Edit ${e.name}`}>
-      <form className="form-grid" onSubmit={(ev) => { ev.preventDefault(); onSave({ ...f, sort: parseInt(f.sort) || 0, image_url: f.image_url || null, discount_pct: f.discount_pct === '' ? null : Math.min(60, Math.max(0, Number(f.discount_pct))) }) }}>
+      <form
+        className="form-grid"
+        onSubmit={(ev) => {
+          ev.preventDefault()
+          onSave({
+            ...f,
+            name: f.name.trim() || e.name,
+            sort: parseInt(f.sort) || 0,
+            image_url: f.image_url || null,
+            image_credit: f.image_url ? f.image_credit.trim() || null : null,
+            offer_label: f.offer_label.trim() || null,
+            discount_pct: f.discount_pct === '' ? null : Math.min(60, Math.max(0, Number(f.discount_pct))),
+          })
+        }}
+      >
+        <ImageField
+          id="ee-photo"
+          label="Photo"
+          value={f.image_url || (f.image_key !== e.image_key ? f.image_key : '')}
+          fallbackKey={e.image_key}
+          cat={f.category}
+          folder="experiences"
+          demo={demo}
+          credit={f.image_credit}
+          onCredit={(v) => setF({ ...f, image_credit: v })}
+          onChange={(v) => setF(/^https?:/.test(v) ? { ...f, image_url: v } : v ? { ...f, image_key: v, image_url: '' } : { ...f, image_url: '', image_key: e.image_key })}
+          hint="Best: the supplier's official photo (ask for their media kit). Landscape, at least 1600px wide. Only use photos you have the rights to."
+        />
         <Field id="ee-name" label="Name on site">
-          <input id="ee-name" value={f.name} onChange={set('name')} />
+          <input id="ee-name" value={f.name} onChange={set('name')} maxLength={60} />
         </Field>
         <div className="two">
           <Field id="ee-cat" label="Category">
@@ -857,20 +1027,22 @@ function EditExperience({ e, siteD, onClose, onSave }) {
         <Field id="ee-blurb" label="Short description">
           <textarea id="ee-blurb" rows={3} value={f.blurb} onChange={set('blurb')} maxLength={220} />
         </Field>
-        <Field id="ee-img" label="Photo URL" optional hint="Use a photo you have the rights to (supplier media kit or your own). Leave empty for the default.">
-          <input id="ee-img" value={f.image_url} onChange={set('image_url')} placeholder="https://…" />
+        <Field id="ee-badge" label="Badge on the card" optional hint="A short tag like Student favourite or New. Ticket offers set their own badge in Pricing.">
+          <input id="ee-badge" value={f.offer_label} onChange={set('offer_label')} maxLength={28} />
         </Field>
-        <Field
-          id="ee-disc"
-          label="Yondo discount off the standard price (%)"
-          optional
-          hint={`Leave empty to use the site default (${siteD}%). ${e.room?.room_min_pct != null ? `Room before your profit floor: ${Math.max(0, e.room.room_min_pct)}% on every ticket, up to ${Math.max(0, e.room.room_max_pct)}% on some.` : ''} Tickets never go below the floor.`}
-        >
-          <input id="ee-disc" type="number" min={0} max={60} step="0.5" value={f.discount_pct} onChange={set('discount_pct')} placeholder={`${siteD}`} />
-        </Field>
-        <Field id="ee-sort" label="Sort order" hint="Lower numbers show first.">
-          <input id="ee-sort" type="number" value={f.sort} onChange={set('sort')} />
-        </Field>
+        <div className="two">
+          <Field
+            id="ee-disc"
+            label="Yondo discount (%)"
+            optional
+            hint={`Empty uses the site default (${siteD}%).${e.room?.room_min_pct != null ? ` Room before your floor: ${Math.max(0, e.room.room_min_pct)}% on every ticket, up to ${Math.max(0, e.room.room_max_pct)}% on some.` : ''}`}
+          >
+            <input id="ee-disc" type="number" min={0} max={60} step="0.5" value={f.discount_pct} onChange={set('discount_pct')} placeholder={`${siteD}`} />
+          </Field>
+          <Field id="ee-sort" label="Sort order" hint="Lower numbers show first.">
+            <input id="ee-sort" type="number" value={f.sort} onChange={set('sort')} />
+          </Field>
+        </div>
         <p className="fine">Supplier name: {e.source_name}</p>
         <button className="btn gold">Save changes</button>
       </form>
@@ -878,30 +1050,41 @@ function EditExperience({ e, siteD, onClose, onSave }) {
   )
 }
 
+const SUPPLIER_HEADER = ['Tour or Attraction', 'Ticket Name', 'Points of origin', 'Pricing Period Start', 'Pricing Period End', 'Rec.Price/Adult (AED)', 'Rec.Price/Child (AED)', 'Rec.Price/Trip (AED)', 'B2B Rate/Adult (AED)', 'B2B Rate/Child (AED)', 'B2B Rate/Trip (AED)']
+
 function PriceImport({ imports, demo, onDone }) {
   const { showToast } = useApp()
   const [rows, setRows] = useState(null)
+  const [preview, setPreview] = useState(null)
   const [file, setFile] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
   async function onFile(e) {
     const fl = e.target.files?.[0]
+    e.target.value = ''
     if (!fl) return
     setErr('')
+    setPreview(null)
     setFile(fl.name)
+    let parsed
     try {
       const XLSX = await loadSheetJS()
       const wb = XLSX.read(await fl.arrayBuffer(), { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
-      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true })
-      const parsed = parseSupplierRows(raw)
+      parsed = parseSupplierRows(XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }))
       if (parsed.length < 10) throw new Error('few')
-      setRows(parsed)
     } catch (ex) {
       setRows(null)
-      setErr('That file doesn’t look like the supplier price list. It needs the same columns as pricelist_5.xlsx.')
+      return setErr('That file doesn’t look like the supplier price list. It needs the same columns as the supplier sheet (or the file you download here).')
     }
+    setRows(parsed)
+    if (demo) return
+    setBusy(true)
+    const { data, error } = await supabase.rpc('admin_preview_prices', { p_rows: parsed })
+    setBusy(false)
+    if (error) return setErr('Could not compare with current prices. You can still import.')
+    setPreview(data)
   }
 
   async function doImport() {
@@ -910,36 +1093,149 @@ function PriceImport({ imports, demo, onDone }) {
     const { data, error } = await supabase.rpc('admin_import_prices', { p_rows: rows, p_source: file })
     setBusy(false)
     if (error || !data?.ok) return setErr(data?.error || 'Import failed. Nothing was changed.')
-    showToast(`Imported ${data.rows} price rows`)
+    showToast(`Prices updated: ${data.rows} rows. The site is using them now.`)
     if (data.newAttractions?.length) setErr(`New in this list (hidden until you review them below): ${data.newAttractions.join(', ')}`)
     setRows(null)
+    setPreview(null)
     onDone()
   }
 
+  async function download() {
+    if (demo) return showToast('Example data. Download works on the live site.', 'error')
+    setBusy(true)
+    try {
+      const [XLSX, res] = await Promise.all([
+        loadSheetJS(),
+        supabase.from('price_rows').select('attraction,ticket,origins,period_start,period_end,rec_adult,rec_child,rec_trip,cost_adult,cost_child,cost_trip').order('attraction').order('ticket').order('period_start').limit(10000),
+      ])
+      if (res.error) throw res.error
+      const us = (iso) => {
+        const [y, m, d] = iso.split('-')
+        return `${parseInt(m)}/${parseInt(d)}/${y}`
+      }
+      const aoa = [SUPPLIER_HEADER, ...res.data.map((r) => [r.attraction, r.ticket, r.origins || '', us(r.period_start), us(r.period_end), +r.rec_adult, +r.rec_child, +r.rec_trip, +r.cost_adult, +r.cost_child, +r.cost_trip])]
+      const ws = XLSX.utils.aoa_to_sheet(aoa)
+      ws['!cols'] = [{ wch: 38 }, { wch: 52 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, ...Array(6).fill({ wch: 11 })]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+      XLSX.writeFile(wb, `yondo-prices-${todayUAE()}.xlsx`)
+    } catch {
+      showToast('Could not build the file. Try again.', 'error')
+    }
+    setBusy(false)
+  }
+
   const attractions = rows ? new Set(rows.map((r) => r.attraction)).size : 0
+  const removedShare = preview && preview.same + preview.changed + preview.removed > 0 ? preview.removed / (preview.same + preview.changed + preview.removed) : 0
   return (
     <div className="card price-import">
-      <h2>Update prices</h2>
-      <p className="muted small">
-        Upload the latest supplier price list (.xlsx, same format as pricelist_5). It replaces all prices. Your rates are the standard price minus
-        your Yondo discount, never below your profit floor. New attractions arrive hidden so you can name and categorise them first.
-      </p>
+      <div className="section-head">
+        <div>
+          <h2>Update prices from Excel</h2>
+          <p className="muted small">
+            Upload the supplier's latest list, or download the current prices, edit them in Excel and upload the file back. You see every change
+            before anything goes live. Your rates, offers and margins recalculate automatically.
+          </p>
+        </div>
+        <button className="btn ghost small" onClick={download} disabled={busy}>
+          <Icon name="download" size={16} /> Download current prices
+        </button>
+      </div>
       <label className="upload">
         <input type="file" accept=".xlsx,.xls,.csv" onChange={onFile} />
-        <Icon name="upload" size={18} /> {file || 'Choose price list file'}
+        <Icon name="upload" size={18} /> {file || 'Choose a price list (.xlsx)'}
       </label>
       {rows && (
-        <Notice tone="info">
-          {rows.length} price rows across {attractions} attractions ready to import.
+        <div className="import-review">
+          <p>
+            <strong>{rows.length}</strong> price rows across <strong>{attractions}</strong> attractions in this file.
+          </p>
+          {busy && !preview && <p className="muted">Comparing with current prices…</p>}
+          {preview && (
+            <>
+              <div className="kpis compact">
+                <div className="kpi">
+                  <small>Price changes</small>
+                  <strong>{preview.changed}</strong>
+                </div>
+                <div className="kpi">
+                  <small>New tickets</small>
+                  <strong>{preview.new}</strong>
+                </div>
+                <div className={`kpi ${removedShare > 0.25 ? 'warn' : ''}`}>
+                  <small>Removed tickets</small>
+                  <strong>{preview.removed}</strong>
+                </div>
+                <div className="kpi">
+                  <small>Buy price up</small>
+                  <strong>{preview.costUp}</strong>
+                </div>
+                <div className="kpi">
+                  <small>Buy price down</small>
+                  <strong>{preview.costDown}</strong>
+                </div>
+                <div className="kpi">
+                  <small>Unchanged</small>
+                  <strong>{preview.same}</strong>
+                </div>
+              </div>
+              {removedShare > 0.25 && (
+                <Notice tone="error">
+                  This file would remove {Math.round(removedShare * 100)}% of current tickets. Check it's the full price list before importing.
+                </Notice>
+              )}
+              {preview.newAttractions?.length > 0 && (
+                <Notice tone="info">New attractions arrive hidden so you can name and photograph them first: {preview.newAttractions.join(', ')}.</Notice>
+              )}
+              {preview.changes?.length > 0 && (
+                <div className="table-wrap import-diff">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Change</th>
+                        <th>Ticket</th>
+                        <th className="num">Standard</th>
+                        <th className="num">Buy</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.changes.map((c, i) => (
+                        <tr key={i}>
+                          <td>
+                            <span className={`pill d-${c.kind}`}>{c.kind === 'changed' ? 'Changed' : c.kind === 'new' ? 'New' : 'Removed'}</span>
+                          </td>
+                          <td>
+                            <strong>{c.attraction}</strong>
+                            <small>
+                              {c.ticket} · {niceDate(c.from, { day: 'numeric', month: 'short' })} to {niceDate(c.to, { day: 'numeric', month: 'short', year: '2-digit' })}
+                            </small>
+                          </td>
+                          <td className="num">
+                            <Delta a={c.oldStd} b={c.newStd} />
+                          </td>
+                          <td className="num">
+                            <Delta a={c.oldCost} b={c.newCost} invert />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {preview.changed + preview.new + preview.removed > preview.changes.length && (
+                    <p className="fine">Showing the first {preview.changes.length} changes.</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
           <div className="btn-row">
-            <button className="btn gold small" disabled={busy} onClick={doImport}>
-              {busy ? 'Importing…' : 'Replace prices with this file'}
+            <button className="btn gold" disabled={busy} onClick={doImport}>
+              {busy && preview ? 'Importing…' : 'Apply these prices'}
             </button>
-            <button className="btn ghost small" onClick={() => setRows(null)}>
+            <button className="btn ghost" onClick={() => { setRows(null); setPreview(null); setFile('') }}>
               Cancel
             </button>
           </div>
-        </Notice>
+        </div>
       )}
       {err && <Notice tone="info">{err}</Notice>}
       {imports.length > 0 && (
@@ -951,6 +1247,22 @@ function PriceImport({ imports, demo, onDone }) {
   )
 }
 
+function Delta({ a, b, invert }) {
+  const n = (x) => (x == null ? null : Number(x))
+  a = n(a)
+  b = n(b)
+  if (a == null && b == null) return '—'
+  if (a == null) return aed(b)
+  if (b == null) return <s>{aed(a)}</s>
+  if (a === b) return aed(b)
+  const up = b > a
+  return (
+    <span className={`delta ${up !== !!invert ? 'good' : 'bad'}`}>
+      <s>{aed(a)}</s> {aed(b)}
+    </span>
+  )
+}
+
 let sheetJs
 function loadSheetJS() {
   if (window.XLSX) return Promise.resolve(window.XLSX)
@@ -959,7 +1271,10 @@ function loadSheetJS() {
     const s = document.createElement('script')
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
     s.onload = () => res(window.XLSX)
-    s.onerror = rej
+    s.onerror = () => {
+      sheetJs = null
+      rej(new Error('load'))
+    }
     document.head.appendChild(s)
   })
   return sheetJs
@@ -979,21 +1294,33 @@ function excelDate(v) {
   return null
 }
 
+// Reads the supplier sheet (or our own export). Columns are found by their headings, so moved columns still work.
 export function parseSupplierRows(raw) {
   const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim()
   const num = (x) => {
-    const n = parseFloat(x)
+    const n = parseFloat(String(x ?? '').replace(/[^\d.-]/g, ''))
     return isNaN(n) ? 0 : Math.round(n * 100) / 100
   }
+  const hi = raw.findIndex((r) => Array.isArray(r) && r.some((c) => /ticket/i.test(String(c ?? ''))))
+  const head = hi >= 0 ? raw[hi].map((h) => String(h ?? '').toLowerCase()) : []
+  const find = (re, fb) => {
+    const i = head.findIndex((h) => re.test(h))
+    return i >= 0 ? i : fb
+  }
+  const col = {
+    attraction: find(/tour|attraction/, 0), ticket: find(/ticket/, 1), origins: find(/origin/, 2), start: find(/start/, 3), end: find(/\bend\b/, 4),
+    ra: find(/rec.*adult/, 5), rc: find(/rec.*child/, 6), rt: find(/rec.*trip/, 7),
+    ca: find(/(b2b|cost|buy|net).*adult/, 8), cc: find(/(b2b|cost|buy|net).*child/, 9), ct: find(/(b2b|cost|buy|net).*trip/, 10),
+  }
   const out = []
-  for (const r of raw.slice(1)) {
-    if (!r || !r[0]) continue
-    const start = excelDate(r[3])
-    const end = excelDate(r[4])
+  for (const r of raw.slice(hi >= 0 ? hi + 1 : 1)) {
+    if (!r || !r[col.attraction] || !r[col.ticket]) continue
+    const start = excelDate(r[col.start])
+    const end = excelDate(r[col.end])
     if (!start || !end) continue
     out.push({
-      attraction: norm(r[0]), ticket: norm(r[1]), origins: norm(r[2]), start, end,
-      rec_adult: num(r[5]), rec_child: num(r[6]), rec_trip: num(r[7]), cost_adult: num(r[8]), cost_child: num(r[9]), cost_trip: num(r[10]),
+      attraction: norm(r[col.attraction]), ticket: norm(r[col.ticket]), origins: norm(r[col.origins]), start, end,
+      rec_adult: num(r[col.ra]), rec_child: num(r[col.rc]), rec_trip: num(r[col.rt]), cost_adult: num(r[col.ca]), cost_child: num(r[col.cc]), cost_trip: num(r[col.ct]),
     })
   }
   return out
@@ -1079,11 +1406,12 @@ function Settings({ settings, demo, onChange }) {
   }
   return (
     <div className="settings">
+      <PasswordCard demo={demo} />
       <div className="card">
         <h2>Yondo rates</h2>
         <p className="muted small">
           Your rate is the standard price (the supplier's recommended retail price) minus this discount. The standard price shows struck through
-          next to it. A ticket is never discounted below your profit floor; set bigger discounts per experience in Catalogue & prices.
+          next to it. A ticket is never discounted below your profit floor; set offers and per-experience discounts in Pricing & offers.
         </p>
         <div className="form-row">
           <Field id="s-site" label="Discount off standard price (%)">
@@ -1162,6 +1490,52 @@ function Settings({ settings, demo, onChange }) {
   )
 }
 
+function PasswordCard({ demo }) {
+  const { showToast, session } = useApp()
+  const [a, setA] = useState('')
+  const [b, setB] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const temp = !!session?.user?.user_metadata?.temp_password
+  async function save(e) {
+    e.preventDefault()
+    if (demo) return showToast('Example data. Changes are not saved.', 'error')
+    if (a.length < 10) return setErr('Use at least 10 characters.')
+    if (!/[a-zA-Z]/.test(a) || !/\d/.test(a)) return setErr('Mix letters and numbers.')
+    if (a !== b) return setErr('The two passwords don’t match.')
+    setErr('')
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ password: a, data: { temp_password: false } })
+    setBusy(false)
+    if (error) return setErr(/same|different/i.test(error.message) ? 'Choose a password you haven’t used here before.' : 'Could not change the password. Sign out, sign in again and retry.')
+    setA('')
+    setB('')
+    showToast('Password changed')
+  }
+  return (
+    <form className={`card ${temp ? 'highlight' : ''}`} onSubmit={save}>
+      <h2>Your password</h2>
+      <p className="muted small">
+        {temp ? 'You signed in with a temporary password. Choose your own now.' : `Signed in as ${session?.user?.email || 'admin'}.`} Use 10+ characters with letters and
+        numbers.
+      </p>
+      <input type="text" name="username" autoComplete="username" value={session?.user?.email || ''} readOnly hidden />
+      <div className="form-row">
+        <Field id="pw-new" label="New password">
+          <input id="pw-new" type="password" autoComplete="new-password" value={a} onChange={(e) => setA(e.target.value)} />
+        </Field>
+        <Field id="pw-new2" label="Type it again">
+          <input id="pw-new2" type="password" autoComplete="new-password" value={b} onChange={(e) => setB(e.target.value)} />
+        </Field>
+      </div>
+      {err && <Notice tone="error">{err}</Notice>}
+      <button className="btn gold" disabled={busy || !a}>
+        {busy ? 'Saving…' : 'Change password'}
+      </button>
+    </form>
+  )
+}
+
 // ------------------------------------------------------------ example data for the preview
 const mk = (o) => {
   const net = Math.round((o.total * 0.95 - o.cost_total) * 100) / 100
@@ -1177,12 +1551,12 @@ const DEMO = {
   ],
   trips: [{ id: 1, ref: 'YQ-7TR2KD', created_at: new Date(Date.now() - 2 * 36e5).toISOString(), kind: 'yacht', title: 'Birthday sunset sail', preferred_date: addDaysIso(10), group_size: 12, budget: 'AED 150 to 300 pp', details: 'Cake on board if possible.', name: 'Example Person', email: 'person@example.com', phone: '+971500000005', status: 'new' }],
   waitlist: [{ id: 1, created_at: new Date().toISOString(), name: 'Example Person', email: 'person@example.com', phone: '', university: 'Example University', interest: '50-seat trip: Road trip' }],
-  codes: [{ code: 'SARA10', owner_name: 'Sara (example ambassador)', owner_contact: '+971500000009', kind: 'ambassador', customer_discount_pct: 5, commission_share_pct: 30, active: true, uses: 2, revenue: 180, discounts_given: 0, commission_owed: 4.32, commission_paid: 0, created_at: new Date().toISOString() }],
+  codes: [{ code: 'SARA10', owner_name: 'Sara (example ambassador)', owner_contact: '+971500000009', kind: 'ambassador', customer_discount_pct: 5, commission_share_pct: 30, commission_type: 'profit_pct', commission_value: 30, active: true, uses: 2, revenue: 180, discounts_given: 0, commission_owed: 4.32, commission_paid: 0, created_at: new Date().toISOString() }],
   experiences: [
-    { id: 1, name: 'IMG Worlds of Adventure', source_name: 'IMG Worlds of Adventure Theme Park', category: 'thrill', emirate: 'Dubai', featured: true, hidden: false, blurb: '', sort: 0, discount_pct: null, room: { room_min_pct: 4.1, room_max_pct: 39.6 } },
-    { id: 2, name: 'Global Village', source_name: 'Global Village', category: 'city', emirate: 'Dubai', featured: true, hidden: false, blurb: '', sort: 0, discount_pct: null, room: { room_min_pct: 8.8, room_max_pct: 8.8 } },
+    { id: 1, name: 'IMG Worlds of Adventure', source_name: 'IMG Worlds of Adventure Theme Park', category: 'thrill', emirate: 'Dubai', featured: true, hidden: false, blurb: '', sort: 0, discount_pct: null, image_key: 'coaster', room: { room_min_pct: 4.1, room_max_pct: 39.6 } },
+    { id: 2, name: 'Global Village', source_name: 'Global Village', category: 'city', emirate: 'Dubai', featured: true, hidden: false, blurb: '', sort: 0, discount_pct: null, image_key: 'global-village', offer_label: 'Student favourite', room: { room_min_pct: 8.8, room_max_pct: 8.8 } },
   ],
-  settings: { id: 1, fee_pct: 5, profit_floor: 5, default_discount_pct: 5, default_commission_share: 30, site_discount_pct: 5, show_standard_price: true, google_reviews_url: 'https://share.google/wpT4mj3k5yt2fROYn', google_write_review_url: 'https://share.google/wpT4mj3k5yt2fROYn', tiers: [{ id: 'explorer', name: 'Explorer', min: 0, perks: [{ text: 'Your digital passport and badge collection', active: true }] }, { id: 'trailblazer', name: 'Trailblazer', min: 3, perks: [{ text: 'Priority replies on WhatsApp', active: false }] }] },
+  settings: { id: 1, content: {}, fee_pct: 5, profit_floor: 5, default_discount_pct: 5, default_commission_share: 30, site_discount_pct: 5, show_standard_price: true, google_reviews_url: 'https://share.google/wpT4mj3k5yt2fROYn', google_write_review_url: 'https://share.google/wpT4mj3k5yt2fROYn', tiers: [{ id: 'explorer', name: 'Explorer', min: 0, perks: [{ text: 'Your digital passport and badge collection', active: true }] }, { id: 'trailblazer', name: 'Trailblazer', min: 3, perks: [{ text: 'Priority replies on WhatsApp', active: false }] }] },
   imports: [],
 }
 function addDaysIso(n) {

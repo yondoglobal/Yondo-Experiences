@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
-import { BUNDLED } from './lib/catalogue.js'
+import { BUNDLED, CATEGORIES } from './lib/catalogue.js'
+import { DEFAULT_CONTENT, mergeContent, applyContent } from './lib/content.js'
 import { loadCatalogue, cachedCatalogue, supabase, onOnline, isOnline } from './lib/api.js'
 import { BRAND, IS_ARTIFACT } from './lib/config.js'
 import { waLink } from './lib/format.js'
@@ -96,9 +97,17 @@ export default function App() {
     setTimeout(() => setToast((t) => (t && Date.now() - t.id > 3500 ? null : t)), 3800)
   }, [])
 
+  // Website text from admin, merged over the defaults. Contact details and category names are pushed into
+  // the shared objects before children render.
+  const content = useMemo(() => {
+    const c = mergeContent(DEFAULT_CONTENT, catalogue.content)
+    applyContent(c)
+    return c
+  }, [catalogue])
+
   const ctx = useMemo(
-    () => ({ catalogue, online, session, query, setQuery, refCode, setRefCode, showToast, route }),
-    [catalogue, online, session, query, refCode, showToast, route]
+    () => ({ catalogue, content, online, session, query, setQuery, refCode, setRefCode, showToast, route }),
+    [catalogue, content, online, session, query, refCode, showToast, route]
   )
 
   let page
@@ -142,11 +151,12 @@ export default function App() {
           <span>Preview build. Photos, sign-in and live booking switch on at experiences.yondo.global.</span>
         </div>
       )}
+      {!isAdmin && content.announcement.on && content.announcement.text && <Announcement a={content.announcement} />}
       <Header route={route} />
       <main id="main-content" tabIndex={-1} className={isAdmin ? 'main admin-main' : 'main'}>
         {page}
       </main>
-      {!isAdmin && <Footer />}
+      {!isAdmin && <Footer tagline={content.footer.tagline} />}
       {!isAdmin && <TabBar route={route} />}
       {toast && (
         <div className={`toast ${toast.tone}`} role="status" key={toast.id}>
@@ -208,13 +218,30 @@ function TabBar({ route }) {
   )
 }
 
-function Footer() {
+function Announcement({ a }) {
+  const inner = (
+    <>
+      <Icon name="star" size={15} /> <span>{a.text}</span>
+      {a.link && <Icon name="next" size={15} />}
+    </>
+  )
+  const ext = /^https?:/.test(a.link || '')
+  return a.link ? (
+    <a className="announce" href={a.link} target={ext ? '_blank' : undefined} rel={ext ? 'noopener' : undefined}>
+      {inner}
+    </a>
+  ) : (
+    <div className="announce">{inner}</div>
+  )
+}
+
+function Footer({ tagline }) {
   return (
     <footer className="site-footer">
       <div className="wrap footer-grid">
         <div className="footer-brand">
           <Brand footer />
-          <p>Student-first experiences across the UAE. Real people on WhatsApp, every day of the week, around the clock.</p>
+          <p>{tagline}</p>
           <div className="footer-contact">
             <a href={waLink('Hi Yondo!')} target="_blank" rel="noopener">
               <Icon name="whatsapp" size={18} /> {BRAND.whatsappDisplay}
@@ -230,11 +257,11 @@ function Footer() {
         <div>
           <h3>Explore</h3>
           <ul>
-            <li><a href="#explore-thrill">Theme parks</a></li>
-            <li><a href="#explore-desert">Desert</a></li>
-            <li><a href="#explore-sea">On the water</a></li>
-            <li><a href="#explore-sky">Sky high</a></li>
-            <li><a href="#explore-city">City & culture</a></li>
+            {CATEGORIES.filter((c) => ['thrill', 'desert', 'sea', 'sky', 'city'].includes(c.id)).map((c) => (
+              <li key={c.id}>
+                <a href={'#explore-' + c.id}>{c.label}</a>
+              </li>
+            ))}
             <li><a href="#trips">Curated trips</a></li>
           </ul>
         </div>
@@ -261,7 +288,7 @@ function Footer() {
       </div>
       <div className="wrap footer-bottom">
         <span>© {new Date().getFullYear()} {BRAND.company}. Prices in UAE dirhams.</span>
-        <span>Photos from Unsplash, credited on each experience.</span>
+        <span>Photos are illustrative and credited on each experience.</span>
       </div>
     </footer>
   )

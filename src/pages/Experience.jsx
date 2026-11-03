@@ -36,7 +36,7 @@ export default function Experience({ slug }) {
 function ExperienceView({ exp }) {
   const { catalogue } = useApp()
   const cat = CAT[exp.cat]
-  const credit = exp.imageUrl || !photosEnabled ? null : photoCredit(exp.img)
+  const credit = exp.imageUrl ? exp.imageCredit : photosEnabled ? photoCredit(exp.img) && `${photoCredit(exp.img)} on Unsplash` : null
   const related = useMemo(
     () => catalogue.experiences.filter((e) => e.cat === exp.cat && e.slug !== exp.slug).slice(0, 4),
     [catalogue, exp]
@@ -45,7 +45,7 @@ function ExperienceView({ exp }) {
   return (
     <article className="exp">
       <div className="exp-banner">
-        <Photo imgKey={exp.img} url={exp.imageUrl} cat={exp.cat} w={1600} h={700} eager sizes="100vw" className="exp-photo" />
+        <Photo imgKey={exp.img} url={exp.imageUrl} alt={exp.name} cat={exp.cat} w={1600} h={700} eager sizes="100vw" className="exp-photo" />
         <div className="exp-banner-shade" />
         <div className="wrap exp-banner-copy">
           <nav className="crumbs" aria-label="Breadcrumb">
@@ -54,6 +54,7 @@ function ExperienceView({ exp }) {
             <a href={'#explore-' + exp.cat}>{cat?.label}</a>
           </nav>
           <h1>{exp.name}</h1>
+          {exp.offer && <span className="offer-tag big">{exp.offer}</span>}
           <div className="exp-meta">
             <span className="chip light">
               <Icon name={CAT_ICON[exp.cat]} size={15} /> {cat?.short}
@@ -63,7 +64,7 @@ function ExperienceView({ exp }) {
             </span>
           </div>
         </div>
-        {credit && <span className="photo-credit">Photo for illustration: {credit} on Unsplash</span>}
+        {credit && <span className="photo-credit">Photo: {credit}</span>}
       </div>
 
       <div className="wrap exp-layout">
@@ -195,7 +196,10 @@ function BookingFlow({ exp }) {
                 <input type="radio" name="option" value={o.key} checked={on} onChange={() => setOptKey(o.key)} disabled={step !== 'choose'} />
                 <span className="option-radio" aria-hidden="true" />
                 <span className="option-main">
-                  <span className="option-name">{o.name}</span>
+                  <span className="option-name">
+                    {o.name}
+                    {o.offer && <span className="offer-tag inline">{o.offer}</span>}
+                  </span>
                   {o.tags.length > 0 && (
                     <span className="option-tags">
                       {o.tags.map((t) => (

@@ -40,7 +40,41 @@ export const PHOTOS = {
   f1: ['photo-1673219956297-a2b87cee09ff', 'untldshots', 'Race cars on track'],
   'east-coast': ['photo-1751949400774-00c77118ddef', 'Samy Mar Boy', 'Boats on a beach on the east coast'],
   friends: ['photo-1511632765486-a01980e01a18', 'Helena Lopes', 'Friends with arms around each other watching the sunset'],
+  // Photos of the actual place (location checked on Unsplash)
+  'ferrari-world': ['photo-1760184762745-c04986a86c54', 'Po-Hsuan Huang', 'The Ferrari World roller coaster on Yas Island'],
+  legoland: ['photo-1699297863328-ae9fb0add4ad', 'aboodi vesakaran', 'A building made of LEGO bricks at LEGOLAND Dubai'],
+  seaworld: ['photo-1788795141148-a8d4061dfef1', 'Jack Sparrow', 'Flamingos in the tropical habitat at SeaWorld Yas Island'],
+  atlantis: ['photo-1634148551170-d37d021e0cc9', 'Faisal Manga', 'Atlantis The Palm on the Dubai coast'],
+  'dubai-aquarium': ['photo-1590999242684-55484214bceb', 'Dovlet Hojayev', 'Visitors in the Underwater Zoo at Dubai Aquarium'],
+  'green-planet': ['photo-1787496323580-ba69dd2f7ddf', 'Vanburn Gonsalves', 'The giant tree under the glass dome at The Green Planet'],
+  'safari-park': ['photo-1612798849321-2a0f1a2595ff', 'Mohammed Ayman', 'Dubai Safari Park'],
+  'zayed-museum': ['photo-1765774909821-14e1f21b0f7b', 'Miguel Joya', 'Zayed National Museum on Saadiyat Island'],
+  'nhm-abu-dhabi': ['photo-1786968302025-63f55efec3df', 'Dilip Poddar', 'A dinosaur skeleton at the Natural History Museum Abu Dhabi'],
+  'sky-views': ['photo-1708361089093-beef4c4584e7', 'Fabien Bellanger', 'Burj Khalifa at twilight from Sky Views Observatory'],
+  'grand-mosque': ['photo-1512632578888-169bbbc64f33', 'David Rodrigo', 'Sheikh Zayed Grand Mosque reflected at sunset'],
+  'museum-future': ['photo-1686918269961-507270a5a238', 'Haris Khan', 'The Museum of the Future in Dubai at golden hour'],
+  'water-canal': ['photo-1542544499-bce9dc3bb4e8', 'Pranav Madhu', 'Dubai Water Canal lit up at night'],
+  'marina-dhow': ['photo-1778008452928-8da3c5b9b9cd', 'Anubhav Sonker', 'A dhow sailing past the Dubai Marina towers at night'],
+  'marina-day': ['photo-1582120042072-d01e2fc8f3ea', 'Timo Volz', 'A boat cruising through Dubai Marina'],
+  'marina-aerial': ['photo-1737724035436-1a301aca2aa2', 'Jhonwayne Pumaras', 'Dubai Marina from above'],
+  falcon: ['photo-1742237281799-85c274bbbec1', 'Humphrey M', 'A falconer on a desert safari outside Dubai'],
+  'desert-abu-dhabi': ['photo-1510479524860-95998e54a8c6', 'Jakub David', 'A 4x4 in the desert near Abu Dhabi'],
+  'balloon-dubai': ['photo-1508655826745-dfce6993b8f4', 'James Mills', 'A hot air balloon over the Dubai desert'],
+  // Accurate photos of the activity
+  'desert-atv': ['photo-1742237281789-c37c5b38e0a9', 'Humphrey M', 'ATVs riding across the desert'],
+  'fishing-boat': ['photo-1722404189738-a9059eddb540', 'Kate Trysh', 'A fishing boat with anglers on a calm sea'],
+  'jetski-sunset': ['photo-1768463852042-656c293ce22f', 'Dawid Tkocz', 'A jet ski on the water at sunset'],
+  butterfly: ['photo-1558898478-9ac0461266c1', 'Sarah Brown', 'A butterfly resting on flowers'],
+  crocodile: ['photo-1605649461784-7d5e4df56c97', 'Shelly Collins', 'A crocodile in the water'],
 }
+
+// Keys whose photo shows the actual place (the rest show the activity). Used by the admin photo report.
+export const PLACE_PHOTOS = new Set([
+  'global-village', 'museum', 'palace', 'flowers', 'burj-night', 'downtown', 'burj-al-arab', 'palm', 'musandam', 'f1', 'jetski',
+  'frame', 'ferrari-world', 'legoland', 'seaworld', 'atlantis', 'dubai-aquarium', 'green-planet', 'safari-park', 'zayed-museum',
+  'nhm-abu-dhabi', 'sky-views', 'grand-mosque', 'museum-future', 'water-canal', 'marina-dhow', 'marina-day', 'marina-aerial',
+  'falcon', 'desert-abu-dhabi', 'balloon-dubai', 'east-coast',
+])
 
 // Category art for when photos are off (preview) or still loading.
 export const CAT_ART = {

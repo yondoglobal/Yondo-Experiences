@@ -94,6 +94,7 @@ export function prepare(raw) {
           const unit = unitOf(periods)
           const cheapest = periods.filter((p) => leadPrice(p, unit)[0]).reduce((m, p) => (leadPrice(p, unit)[0] < leadPrice(m, unit)[0] ? p : m))
           const [from, fromStd] = leadPrice(cheapest, unit)
+          const current = periodFor({ periods }, today) || periods[0]
           return {
             key: o.key,
             name: o.name,
@@ -108,6 +109,7 @@ export function prepare(raw) {
             fromStd,
             tripFrom: unit === 'person+trip' ? cheapest.t : null,
             tripStd: unit === 'person+trip' ? cheapest.mt || cheapest.t : null,
+            offer: current.o || cheapest.o || null,
             firstDate: periods.reduce((m, p) => (p.s < m ? p.s : m), periods[0].s),
             lastDate: periods.reduce((m, p) => (p.e > m ? p.e : m), periods[0].e),
           }
@@ -125,6 +127,8 @@ export function prepare(raw) {
         blurb: e.blurb,
         img: e.img,
         imageUrl: e.imageUrl || null,
+        imageCredit: e.imageCredit || null,
+        offer: e.offer || main.find((o) => o.offer)?.offer || null,
         featured: !!e.featured,
         sort: e.sort || 0,
         options,
@@ -143,6 +147,7 @@ export function prepare(raw) {
     showStandard: raw.showStandardPrice !== false,
     reviewsUrl: raw.reviewsUrl || null,
     writeReviewUrl: raw.writeReviewUrl || raw.reviewsUrl || null,
+    content: raw.content || {},
     bySlug: Object.fromEntries(experiences.map((e) => [e.slug, e])),
   }
 }

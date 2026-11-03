@@ -53,10 +53,14 @@ export function Link({ to, className = '', children, ...rest }) {
 }
 
 // A photo that degrades to category art if photos are off or fail to load.
-export function Photo({ imgKey, cat, url, w = 800, h, sizes, className = '', eager = false, children }) {
+export function Photo({ imgKey, cat, url, alt, w = 800, h, sizes, className = '', eager = false, children }) {
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const src = url || photoUrl(imgKey, w, h)
+  useEffect(() => {
+    setFailed(false)
+    setLoaded(false)
+  }, [src])
   return (
     <div className={`photo ${loaded ? 'loaded' : ''} ${className}`}>
       <Scene cat={cat} />
@@ -65,7 +69,7 @@ export function Photo({ imgKey, cat, url, w = 800, h, sizes, className = '', eag
           src={src}
           srcSet={url ? undefined : photoSrcSet(imgKey, [w / 2, w, w * 1.5].map(Math.round), h)}
           sizes={sizes}
-          alt={photoAlt(imgKey)}
+          alt={alt ?? (url ? '' : photoAlt(imgKey))}
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
           onLoad={() => setLoaded(true)}
@@ -114,6 +118,7 @@ export function TicketCard({ exp, compact = false, showStandard = true }) {
           <Icon name={CAT_ICON[exp.cat]} size={14} /> {cat?.short}
         </span>
         {showStandard && <SaveSticker pct={exp.savePct} />}
+        {exp.offer && <span className="offer-tag">{exp.offer}</span>}
       </Photo>
       <div className="ticket-perf" aria-hidden="true" />
       <div className="ticket-body">

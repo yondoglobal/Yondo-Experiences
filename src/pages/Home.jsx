@@ -7,6 +7,7 @@ import { Icon, CAT_ICON } from '../components/Icon.jsx'
 import { Mascot, Photo, TicketCard, navigate } from '../components/ui.jsx'
 import { PassportCover, Stamp } from '../components/PassportParts.jsx'
 import { EXAMPLE_PASSPORT, BADGES } from '../lib/passport.js'
+import { imageProps } from '../lib/content.js'
 
 const QUICK = [
   ['Desert', 'desert'],
@@ -17,7 +18,7 @@ const QUICK = [
 ]
 
 export default function Home() {
-  const { catalogue, setQuery } = useApp()
+  const { catalogue, content: C, setQuery } = useApp()
   const reviewsUrl = catalogue.reviewsUrl || BRAND.googleReviews
   const writeReviewUrl = catalogue.writeReviewUrl || reviewsUrl
   const [q, setQ] = useState('')
@@ -52,24 +53,21 @@ export default function Home() {
         <div className="wrap hero-grid">
           <div className="hero-copy">
             <h1 className="hero-title">
-              Make the weekend{' '}
+              {C.hero.title}{' '}
               <span className="hero-accent">
-                count.
+                {C.hero.accent}
                 <svg className="swoosh" viewBox="0 0 320 40" aria-hidden="true" preserveAspectRatio="none">
                   <path d="M4 30 C80 8 200 4 316 18" />
                 </svg>
               </span>
             </h1>
-            <p className="hero-sub">
-              Theme parks, desert nights, yachts and day trips across the UAE. Pick a plan, we confirm it on WhatsApp, and you pay only once
-              it's locked in.
-            </p>
+            <p className="hero-sub">{C.hero.sub}</p>
             <form className="hero-search" onSubmit={go} role="search">
               <Icon name="search" size={20} />
               <label htmlFor="hero-q" className="sr-only">
                 Search experiences
               </label>
-              <input id="hero-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Try desert, IMG or yacht" autoComplete="off" />
+              <input id="hero-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder={C.hero.searchPlaceholder} autoComplete="off" />
               <button className="btn gold" type="submit">
                 Search
               </button>
@@ -85,7 +83,7 @@ export default function Home() {
 
           <div className="hero-pass" aria-hidden="true">
             <div className="pass">
-              <Photo imgKey="downtown" cat="sky" w={900} h={1100} eager className="pass-photo" sizes="(max-width: 900px) 90vw, 440px" />
+              <Photo {...imageProps(C.hero.image, 'downtown')} cat="sky" w={900} h={1100} eager className="pass-photo" sizes="(max-width: 900px) 90vw, 440px" />
               <div className="pass-shade" />
               <Mascot pose="welcome" className="pass-mascot" fetchpriority="high" />
               <span className="pass-spark s1" />
@@ -93,17 +91,17 @@ export default function Home() {
               <div className="pass-rows">
                 <div>
                   <small>Passenger</small>
-                  <strong>You + the squad</strong>
+                  <strong>{C.hero.passenger}</strong>
                 </div>
                 <div>
                   <small>Destination</small>
-                  <strong>The weekend</strong>
+                  <strong>{C.hero.destination}</strong>
                 </div>
               </div>
               <div className="pass-stub">
                 <div>
                   <small>Gate</small>
-                  <strong>WhatsApp, 24/7</strong>
+                  <strong>{C.hero.gate}</strong>
                 </div>
                 <div className="barcode" />
               </div>
@@ -117,14 +115,14 @@ export default function Home() {
           <div className="trust-item">
             <Icon name="shield" size={26} />
             <div>
-              <strong>Licensed tour operator</strong>
+              <strong>{C.trust.licence}</strong>
               <span>Licence no. {BRAND.licence}</span>
             </div>
           </div>
           <div className="trust-item">
             <Icon name="star" size={26} />
             <div>
-              <strong>Reviewed on Google</strong>
+              <strong>{C.trust.reviews}</strong>
               <span>
                 <a href={reviewsUrl} target="_blank" rel="noopener">
                   Read
@@ -139,15 +137,15 @@ export default function Home() {
           <a className="trust-item" href={waLink('Hi Yondo!')} target="_blank" rel="noopener">
             <Icon name="whatsapp" size={26} />
             <div>
-              <strong>Real people, 24/7</strong>
+              <strong>{C.trust.support}</strong>
               <span>{BRAND.whatsappDisplay}</span>
             </div>
           </a>
           <div className="trust-item">
             <Icon name="card" size={26} />
             <div>
-              <strong>Pay after we confirm</strong>
-              <span>Secure card link, no booking fees</span>
+              <strong>{C.trust.pay}</strong>
+              <span>{C.trust.payText}</span>
             </div>
           </div>
         </div>
@@ -156,7 +154,7 @@ export default function Home() {
       <section className="section">
         <div className="wrap">
           <div className="section-head">
-            <h2>Pick your vibe</h2>
+            <h2>{C.sections.vibe}</h2>
             <a className="text-link" href="#explore">
               See all {catalogue.experiences.length} experiences
             </a>
@@ -164,7 +162,7 @@ export default function Home() {
           <div className="cat-grid">
             {CATEGORIES.map((c) => (
               <a key={c.id} className="cat-tile" href={'#explore-' + c.id}>
-                <Photo imgKey={c.img} cat={c.id} w={520} h={360} sizes="(max-width: 700px) 46vw, 280px" />
+                <Photo {...imageProps(c.image, c.img)} cat={c.id} w={520} h={360} sizes="(max-width: 700px) 46vw, 280px" />
                 <div className="cat-tile-body">
                   <span className="cat-icon">
                     <Icon name={CAT_ICON[c.id]} size={20} />
@@ -178,44 +176,25 @@ export default function Home() {
         </div>
       </section>
 
-      <FeaturedRow items={featured} showStandard={catalogue.showStandard} />
+      <FeaturedRow title={C.sections.featured} items={featured} showStandard={catalogue.showStandard} />
 
       <section className="section how">
         <div className="wrap how-grid">
           <div className="how-intro">
-            <h2>How booking works</h2>
-            <p>No checkout roulette. A real person checks your slot with the supplier before you pay a dirham.</p>
+            <h2>{C.how.title}</h2>
+            <p>{C.how.intro}</p>
             <Mascot pose="pointUp" alt="" className="how-mascot" />
           </div>
           <ol className="steps">
-            <li>
-              <span className="step-n">1</span>
-              <div>
-                <strong>Pick your plan</strong>
-                <p>Choose the experience, date and group size. You see the full price before you send anything.</p>
-              </div>
-            </li>
-            <li>
-              <span className="step-n">2</span>
-              <div>
-                <strong>We confirm on WhatsApp</strong>
-                <p>Our team checks availability with the supplier and messages you back with the details.</p>
-              </div>
-            </li>
-            <li>
-              <span className="step-n">3</span>
-              <div>
-                <strong>Pay by secure link</strong>
-                <p>We send a card payment link. You pay once your slot is locked in, never before.</p>
-              </div>
-            </li>
-            <li>
-              <span className="step-n">4</span>
-              <div>
-                <strong>Go, then collect your stamp</strong>
-                <p>Tickets land on WhatsApp and email. After the experience, a stamp lands in your Yondo passport.</p>
-              </div>
-            </li>
+            {C.how.steps.map((st, i) => (
+              <li key={i}>
+                <span className="step-n">{i + 1}</span>
+                <div>
+                  <strong>{st.title}</strong>
+                  <p>{st.text}</p>
+                </div>
+              </li>
+            ))}
           </ol>
         </div>
       </section>
@@ -223,11 +202,8 @@ export default function Home() {
       <section className="passport-promo">
         <div className="wrap promo-grid">
           <div className="promo-copy">
-            <h2>Your Yondo passport</h2>
-            <p>
-              Every experience you complete earns a stamp. Unlock badges like Desert nomad and Emirate hopper, climb from Explorer to Yondo Icon,
-              and share your passport to your story.
-            </p>
+            <h2>{C.passport.title}</h2>
+            <p>{C.passport.text}</p>
             <ul className="promo-badges" aria-label="Some of the badges">
               {BADGES.slice(1, 7).map((b) => (
                 <li key={b.id}>
@@ -256,20 +232,15 @@ export default function Home() {
       <section className="section curated-teaser">
         <div className="wrap">
           <div className="section-head">
-            <h2>Plans we build for you</h2>
+            <h2>{C.sections.curated}</h2>
             <a className="text-link" href="#trips">
               Ask for a quote
             </a>
           </div>
           <div className="curated-grid">
-            {[
-              ['Private yachts', 'Birthdays, sunset sails and squad days out. Tell us the date and headcount and we find the boat.', 'yacht', 'sea'],
-              ['Private desert trips', 'Your own car, your own camp time, your own pace. Good for groups who want the dunes to themselves.', 'desert-night', 'desert'],
-              ['Road trips', 'Khor Fakkan viewpoint and other days out beyond Dubai, with transport sorted.', 'east-coast', 'trips'],
-              ['50-seat group trips', 'Big coach trips with your uni crowd are coming soon. Join the list to hear first.', 'friends', 'group'],
-            ].map(([t, d, img, cat]) => (
+            {C.curated.map(({ title: t, text: d, image: img, cat }) => (
               <a key={t} className="curated-card" href="#trips">
-                <Photo imgKey={img} cat={cat} w={560} h={380} sizes="(max-width: 700px) 90vw, 280px" />
+                <Photo {...imageProps(img)} cat={cat || 'trips'} w={560} h={380} sizes="(max-width: 700px) 90vw, 280px" />
                 <div>
                   <strong>{t}</strong>
                   <p>{d}</p>
@@ -284,8 +255,8 @@ export default function Home() {
         <div className="wrap reviews-grid">
           <Mascot pose="selfieThumb" alt="" className="reviews-mascot" />
           <div>
-            <h2>Don't take our word for it</h2>
-            <p>Read what students say about us on Google, unfiltered. Been on a Yondo plan? Your review helps the next squad decide.</p>
+            <h2>{C.reviews.title}</h2>
+            <p>{C.reviews.text}</p>
             <div className="btn-row">
               <a className="btn dark" href={reviewsUrl} target="_blank" rel="noopener">
                 <Icon name="star" size={18} /> Read our Google reviews
@@ -298,19 +269,19 @@ export default function Home() {
         </div>
       </section>
 
-      <Faq />
+      <Faq faq={C.faq} />
     </>
   )
 }
 
-function FeaturedRow({ items, showStandard }) {
+function FeaturedRow({ title, items, showStandard }) {
   const ref = useRef(null)
   const scroll = (dir) => ref.current?.scrollBy({ left: dir * ref.current.clientWidth * 0.8, behavior: 'smooth' })
   return (
     <section className="section featured">
       <div className="wrap">
         <div className="section-head">
-          <h2>Student favourites</h2>
+          <h2>{title}</h2>
           <div className="row-arrows">
             <button className="icon-btn" onClick={() => scroll(-1)} aria-label="Scroll left">
               <Icon name="back" />
@@ -332,28 +303,19 @@ function FeaturedRow({ items, showStandard }) {
   )
 }
 
-const FAQS = [
-  ['Do I pay when I send a request?', 'No. Sending a booking request is free. We check availability with the supplier first, then send you a secure card payment link on WhatsApp. You only pay once your booking is confirmed.'],
-  ['How do I get my tickets?', 'Once you have paid, we send your tickets or booking voucher on WhatsApp and to your email. For tours with pickup, we also confirm the pickup time and place.'],
-  ['Can I cancel or change my booking?', 'It depends on the supplier for that experience. We tell you the exact cancellation terms before you pay, so there are no surprises. Read the full booking policy for details.'],
-  ['What is a referral code?', 'Some ambassadors and partners have Yondo codes. Add one when you book: where the ticket allows, you get money off, and the person who shared it gets credit.'],
-  ['How does the Yondo passport work?', 'Sign in with your email. Every experience you complete adds a stamp to your passport, and stamps unlock badges and tiers. Bookings made with the same email are added automatically.'],
-  ['Can you organise something that is not listed?', 'Yes. Private yachts, desert trips, road trips like Khor Fakkan and group plans are built on request. Send us the details on the curated trips page or on WhatsApp.'],
-]
-
-function Faq() {
+function Faq({ faq }) {
   return (
     <section className="section faq">
       <div className="wrap faq-grid">
         <div>
-          <h2>Questions people ask</h2>
-          <p className="muted">Still stuck? We reply on WhatsApp around the clock.</p>
+          <h2>{faq.title}</h2>
+          <p className="muted">{faq.sub}</p>
           <a className="btn ghost" href={waLink('Hi Yondo! I have a question.')} target="_blank" rel="noopener">
             <Icon name="whatsapp" size={18} /> Ask on WhatsApp
           </a>
         </div>
         <div className="faq-list">
-          {FAQS.map(([q, a]) => (
+          {faq.items.filter((f) => f.q && f.a).map(({ q, a }) => (
             <details key={q}>
               <summary>
                 {q}
