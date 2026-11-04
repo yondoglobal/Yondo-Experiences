@@ -1,0 +1,65 @@
+<!-- Yondo Experiences sign-in email. Paste into Supabase → Authentication → Emails → Templates,
+     for BOTH "Confirm sign up" and "Magic link". Subject: Your Yondo Experiences sign-in code -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Your Yondo Experiences sign-in code</title>
+</head>
+<body style="margin:0;padding:0;background:#f2f7f6;-webkit-text-size-adjust:100%;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your code is {{ .Token }}. It works for one hour.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f7f6;">
+  <tr>
+    <td align="center" style="padding:28px 14px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background:#ffffff;border-radius:20px;overflow:hidden;">
+        <tr>
+          <td style="background:#03343a;padding:22px 28px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td valign="middle" style="font-family:'Arial Black',Arial,Helvetica,sans-serif;color:#ffffff;line-height:1;">
+                  <div style="font-size:26px;font-weight:900;letter-spacing:-0.5px;">yondo</div>
+                  <div style="font-size:13px;font-weight:700;color:#ffc531;letter-spacing:0.3px;margin-top:2px;">experiences</div>
+                </td>
+                <td valign="bottom" align="right" style="width:70px;">
+                  <img src="https://experiences.yondo.global/email/mascot.png" width="61" height="80" alt="" style="display:block;border:0;width:61px;height:80px;margin-bottom:-22px;">
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:34px 28px 8px;font-family:Arial,Helvetica,sans-serif;color:#0b2a2e;">
+            <h1 style="margin:0 0 10px;font-size:22px;line-height:1.25;font-weight:800;">Here's your sign-in code</h1>
+            <p style="margin:0 0 22px;font-size:15px;line-height:1.55;color:#44636a;">Type this code on the Yondo page you came from to open your passport.</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="background:#fff1c4;border:2px dashed #e5a400;border-radius:14px;padding:18px 10px;">
+                  <span style="font-family:'Courier New',Courier,monospace;font-size:34px;font-weight:700;letter-spacing:8px;color:#0b2a2e;">{{ .Token }}</span>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:12px 0 26px;font-size:13px;line-height:1.5;color:#6f8c90;text-align:center;">The code works for one hour.</p>
+            <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#44636a;">On your phone? Tap the button instead and we'll sign you straight in.</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background:#ffc531;border-radius:999px;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 26px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#0b2a2e;text-decoration:none;">Open my passport</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:26px 28px 30px;font-family:Arial,Helvetica,sans-serif;">
+            <p style="margin:0;padding-top:18px;border-top:1px solid #d2e1df;font-size:13px;line-height:1.55;color:#6f8c90;">Didn't ask to sign in? You can safely ignore this email.<br>Questions? WhatsApp us any time on <a href="https://wa.me/971503676042" style="color:#00707a;font-weight:700;text-decoration:none;white-space:nowrap;">+971 50 367 6042</a>.</p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:16px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#6f8c90;">Yondo Experiences · Bindal Univentures LLC, Sharjah Media City (Shams), UAE<br><a href="https://experiences.yondo.global" style="color:#00707a;text-decoration:none;">experiences.yondo.global</a></p>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import { BUNDLED, CATEGORIES } from './lib/catalogue.js'
 import { DEFAULT_CONTENT, mergeContent, applyContent } from './lib/content.js'
-import { loadCatalogue, cachedCatalogue, supabase, onOnline, isOnline } from './lib/api.js'
+import { loadCatalogue, cachedCatalogue, supabase, onOnline, isOnline, AUTH_LINK, AUTH_LINK_ERROR } from './lib/api.js'
 import { BRAND, IS_ARTIFACT } from './lib/config.js'
 import { waLink } from './lib/format.js'
 import { Icon } from './components/Icon.jsx'
@@ -16,6 +16,19 @@ import Admin from './pages/Admin.jsx'
 import Legal from './pages/Legal.jsx'
 
 const AppCtx = createContext(null)
+
+// True between opening a sign-in link and the session being ready. While it is set, the router ignores the
+// auth library clearing the address bar (which would otherwise drop the customer on the home page).
+let pendingAuth = AUTH_LINK && !AUTH_LINK_ERROR
+
+function takeReturnTo() {
+  let to = 'passport'
+  try {
+    to = localStorage.getItem('yx.returnTo') || 'passport'
+    localStorage.removeItem('yx.returnTo')
+  } catch {}
+  return to
+}
 export const useApp = () => useContext(AppCtx)
 
 function readRoute() {
@@ -55,6 +68,7 @@ export default function App() {
 
   useEffect(() => {
     const on = () => {
+      if (pendingAuth && !window.location.hash.replace('#', '')) return
       setRoute(readRoute())
       window.scrollTo({ top: 0, behavior: 'instant' in document.documentElement.style ? 'instant' : 'auto' })
     }
@@ -75,21 +89,35 @@ export default function App() {
   useEffect(() => {
     if (IS_ARTIFACT) return
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const goTo = (to) => {
+      history.replaceState(null, '', window.location.pathname + window.location.search + '#' + to)
+      setRoute(readRoute())
+    }
+    if (AUTH_LINK_ERROR) {
+      goTo('passport')
+      setTimeout(() => showToast(AUTH_LINK_ERROR, 'error'), 300)
+    }
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
-      if (event === 'SIGNED_IN') {
-        let to = 'passport'
-        try {
-          to = localStorage.getItem('yx.returnTo') || 'passport'
-          localStorage.removeItem('yx.returnTo')
-        } catch {}
-        if (/access_token|type=magiclink/.test(window.location.hash) || readRoute().name === 'auth') {
-          history.replaceState(null, '', window.location.pathname + window.location.search + '#' + to)
-          setRoute(readRoute())
-        }
+      if (s && pendingAuth && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+        pendingAuth = false
+        goTo(takeReturnTo())
+      } else if (event === 'SIGNED_IN' && readRoute().name === 'auth') {
+        goTo(takeReturnTo())
       }
     })
-    return () => sub.subscription.unsubscribe()
+    // If the link never turns into a session (rare), still land somewhere useful.
+    const t = pendingAuth
+      ? setTimeout(() => {
+          if (!pendingAuth) return
+          pendingAuth = false
+          goTo('passport')
+        }, 10000)
+      : null
+    return () => {
+      sub.subscription.unsubscribe()
+      if (t) clearTimeout(t)
+    }
   }, [])
 
   const showToast = useCallback((msg, tone = 'ok') => {

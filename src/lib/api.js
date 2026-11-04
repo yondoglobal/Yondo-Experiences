@@ -2,6 +2,22 @@ import { createClient } from '@supabase/supabase-js'
 import { SUPABASE_URL, SUPABASE_ANON_KEY, IS_ARTIFACT } from './config.js'
 import { prepare, BUNDLED } from './catalogue.js'
 
+// Was this page opened from a sign-in email? Read the link before the auth library clears it from the address bar.
+const startHash = typeof window !== 'undefined' ? window.location.hash : ''
+export const AUTH_LINK = !IS_ARTIFACT && /access_token=|error_description=|error_code=/.test(startHash)
+export const AUTH_LINK_ERROR = (() => {
+  if (!AUTH_LINK) return null
+  try {
+    const q = new URLSearchParams(startHash.replace(/^#/, ''))
+    if (!q.get('error') && !q.get('error_code')) return null
+    return /expired|invalid/i.test(q.get('error_description') || q.get('error_code') || '')
+      ? 'That sign-in link has expired or was already used. Enter your email and we will send a fresh code.'
+      : 'That sign-in link did not work. Enter your email and we will send a fresh code.'
+  } catch {
+    return null
+  }
+})()
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: !IS_ARTIFACT, autoRefreshToken: !IS_ARTIFACT, detectSessionInUrl: !IS_ARTIFACT, flowType: 'implicit' },
 })

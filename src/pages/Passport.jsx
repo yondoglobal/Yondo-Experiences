@@ -11,7 +11,7 @@ import { PassportCover, PassportDataPage, Stamp, BadgeTile, TierTrack } from '..
 import { STATUS_STEPS } from './Track.jsx'
 
 export default function Passport() {
-  const { session, catalogue } = useApp()
+  const { session, catalogue, route } = useApp()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -32,6 +32,15 @@ export default function Passport() {
   useEffect(() => {
     load()
   }, [load])
+
+  if (route.name === 'auth' && !session) {
+    return (
+      <div className="wrap passport-loading">
+        <PassportCover />
+        <p className="muted">Signing you in…</p>
+      </div>
+    )
+  }
 
   if (session && (data || loading)) {
     if (!data) return <div className="wrap passport-loading"><PassportCover /><p className="muted">Opening your passport…</p></div>
