@@ -4290,3 +4290,126 @@ a.announce:hover span {
     box-shadow: 1px 0 0 var(--line);
   }
 }
+
+/* ---------- admin: price grid and ticket lists */
+.price-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 640px;
+}
+.price-grid th,
+.price-grid td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+.price-grid thead th {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.price-grid tbody th {
+  font-weight: 700;
+}
+.price-grid .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.price-grid input {
+  width: 96px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.price-grid input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--info-soft);
+}
+.price-grid input.set {
+  border-color: #c8392f;
+  background: var(--err-soft);
+  font-weight: 700;
+}
+.price-grid input::placeholder {
+  color: var(--ink-3);
+}
+.price-grid input:disabled {
+  background: var(--surface-2);
+}
+.price-grid tbody tr:last-child th,
+.price-grid tbody tr:last-child td {
+  border-bottom: 0;
+}
+.grid-notes {
+  margin-top: -6px;
+  line-height: 1.55;
+}
+.updated-cell {
+  white-space: nowrap;
+}
+.ticket-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.ticket-list button {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ticket-list button:hover {
+  border-color: var(--teal);
+}
+.ticket-list button:focus-visible {
+  outline: 3px solid var(--gold);
+}
+.tl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.tl-head strong {
+  font-size: 0.95rem;
+}
+.tl-figs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 0.84rem;
+  color: var(--ink-2);
+}
+.tl-figs b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.tl-figs b.pos {
+  color: var(--ok);
+}
+.tl-figs b.neg {
+  color: var(--coral);
+}
+.ticket-list small {
+  font-size: 0.76rem;
+}

@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../App.jsx'
 import { supabase } from '../../lib/api.js'
 import { CAT, todayUAE } from '../../lib/catalogue.js'
-import { niceDate } from '../../lib/format.js'
+import { niceDate, niceDateTime } from '../../lib/format.js'
 import { Icon } from '../../components/Icon.jsx'
 import { Field, Notice, Sheet } from '../../components/ui.jsx'
-import { autoSell, breakdown, priceForNet, priceForMargin, COMMISSION_TYPES, fmt, pct, r2 } from './money.js'
+import { autoSell, breakdown, priceForNet, priceForMargin, sellable, COMMISSION_TYPES, fmt, pct, r2 } from './money.js'
 
 // ------------------------------------------------------------ data
-function derive(r, s, today) {
+export function derive(r, s, today) {
   const fee = Number(s.fee_pct)
   const fl = Number(s.profit_floor)
   const n = (x) => Number(x) || 0
@@ -34,12 +34,12 @@ function derive(r, s, today) {
   }
   const b = breakdown({ ...pkg, feePct: fee })
   const status = !r.sellable ? 'hidden' : r.experience_hidden ? 'off' : offerLive ? 'offer' : r.offer_id ? 'scheduled' : 'auto'
-  return { ...r, ra, rc, rt, ca, cc, ct, combined, childOk, auto, price, lead, pkg, b, status, offerLive, fee, floor: fl }
+  return { ...r, ra, rc, rt, ca, cc, ct, combined, childOk, auto, price, lead, pkg, b, status, offerLive, fee, floor: fl, sellable: !!r.sellable }
 }
 
-const STATUS_LABEL = { offer: 'On offer', scheduled: 'Offer scheduled', auto: 'Auto price', hidden: 'Hidden: under floor', off: 'Experience hidden' }
+export const STATUS_LABEL = { offer: 'On offer', scheduled: 'Offer scheduled', auto: 'Auto price', hidden: 'Hidden: under floor', off: 'Experience hidden' }
 
-function unitLabel(r) {
+export function unitLabel(r) {
   if (r.unit === 'person+trip') return 'per person + vehicle'
   if (r.unit === 'trip') return 'per booking'
   return 'per person'
@@ -63,11 +63,11 @@ export default function Pricing({ settings, demo, onChange }) {
       return
     }
     const [p, o] = await Promise.all([
-      supabase.from('admin_option_pricing').select('*').limit(2000),
+      loadPricing(false).catch(() => null),
       supabase.from('price_overrides').select('*').order('created_at', { ascending: false }).limit(500),
     ])
-    if (p.error) showToast('Could not load prices.', 'error')
-    setRaw(p.data || [])
+    if (!p) showToast('Could not load prices.', 'error')
+    setRaw(p || [])
     setOffers(o.data || [])
   }, [demo, showToast])
 
@@ -113,8 +113,8 @@ export default function Pricing({ settings, demo, onChange }) {
           <div>
             <h2>Every ticket, live</h2>
             <p className="muted small">
-              What each ticket sells for today and what Yondo keeps after the supplier and the {Number(settings.fee_pct)}% gateway fee (before any
-              referral commission). Tap a ticket to run the numbers or create an offer.
+              Buying price, market price and what each ticket sells for today, with the {Number(settings.fee_pct)}% PG fee and what Yondo keeps
+              (before any referral commission). Tap a ticket to change any of its prices.
             </p>
           </div>
         </div>
@@ -151,12 +151,13 @@ export default function Pricing({ settings, demo, onChange }) {
               <thead>
                 <tr>
                   <th>Ticket</th>
-                  <th className="num">Buy</th>
-                  <th className="num">Standard</th>
+                  <th className="num">Buying price</th>
+                  <th className="num">Market price</th>
                   <th className="num">Our price</th>
-                  <th className="num">Gateway</th>
+                  <th className="num">PG {Number(settings.fee_pct)}%</th>
                   <th className="num">Yondo keeps</th>
                   <th className="num">Margin</th>
+                  <th>Updated</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -179,6 +180,10 @@ export default function Pricing({ settings, demo, onChange }) {
                     <td className={`num ${r.b.net < r.floor ? 'neg' : ''}`}>{fmt(r.b.net)}</td>
                     <td className="num">
                       <MarginBar pct={r.b.marginPct} />
+                    </td>
+                    <td className="updated-cell">
+                      {r.updated_at ? niceDate(r.updated_at, { day: 'numeric', month: 'short' }) : '—'}
+                      <small>{r.updated_by && r.updated_by !== 'system' ? 'Edited in admin' : 'Price list'}</small>
                     </td>
                     <td>
                       <span className={`pill p-${r.status}`}>{STATUS_LABEL[r.status]}</span>
@@ -210,7 +215,7 @@ function Kpi({ label, value, tone }) {
   )
 }
 
-function MarginBar({ pct: p }) {
+export function MarginBar({ pct: p }) {
   const w = Math.max(0, Math.min(100, p * 3))
   const tone = p < 3 ? 'low' : p < 8 ? 'mid' : 'high'
   return (
@@ -407,176 +412,268 @@ function Calculator({ fee: siteFee, floor }) {
   )
 }
 
-// ------------------------------------------------------------ one ticket: numbers + offer
-function TicketSheet({ r, settings, demo, onClose, onSaved }) {
+// ------------------------------------------------------------ one ticket: supplier prices, our price and offer in one place
+export function updatedLine(r) {
+  if (!r.updated_at) return ''
+  const by = r.updated_by && r.updated_by !== 'system' ? `edited by ${r.updated_by}` : `from ${r.source_file || 'the price list'}`
+  return `${niceDateTime(r.updated_at)} · ${by}`
+}
+
+export function TicketSheet({ r, settings, demo, onClose, onSaved }) {
   const { showToast } = useApp()
-  const has = { a: r.ra > 0, c: r.childOk, t: r.rt > 0 }
-  const init = (k, ov) => String(r.offer_id && ov != null ? Number(ov) : r.auto[k] ?? '')
-  const [p, setP] = useState({ a: init('a', r.offer_adult), c: init('c', r.offer_child), t: init('t', r.offer_trip) })
+  const today = todayUAE()
+  const fee = Number(settings.fee_pct)
+  const fl = Number(settings.profit_floor)
+  const str = (x) => (x == null ? '' : String(Number(x)))
+  const num = (x) => (String(x).trim() === '' ? null : Number(x))
+  const initSup = { ra: str(r.rec_adult), rc: str(r.rec_child), rt: str(r.rec_trip), ca: str(r.cost_adult), cc: str(r.cost_child), ct: str(r.cost_trip) }
+  const initOurs = { a: r.offer_id ? str(r.offer_adult) : '', c: r.offer_id ? str(r.offer_child) : '', t: r.offer_id ? str(r.offer_trip) : '' }
+  const [sup, setSup] = useState(initSup)
+  const [ours, setOurs] = useState(initOurs)
   const [label, setLabel] = useState(r.offer_label || '')
   const [start, setStart] = useState(r.offer_starts || '')
   const [end, setEnd] = useState(r.offer_ends || '')
+  const [allPeriods, setAllPeriods] = useState(false)
   const [ctype, setCtype] = useState('none')
   const [cval, setCval] = useState(settings.default_commission_share ?? 30)
   const [disc, setDisc] = useState(r.experience_discount ?? '')
   const [busy, setBusy] = useState(false)
-  const fee = r.fee
-  const lead = r.lead
-  const leadStd = lead === 'a' ? r.ra : r.rt
-  const leadCost = lead === 'a' ? r.ca : r.ct
 
-  const pkgPrice = (lead === 'a' ? Number(p.a) || 0 : 0) + (has.t ? Number(p.t) || 0 : 0)
-  const opts = { cost: r.pkg.cost, feePct: fee, commissionType: ctype, commissionValue: ctype === 'none' ? 0 : cval, units: 1 }
-  const b = breakdown({ ...opts, price: pkgPrice, standard: r.pkg.standard })
-  const bChild = has.c ? breakdown({ price: Number(p.c) || 0, cost: r.cc, standard: r.rc, feePct: fee, commissionType: ctype, commissionValue: ctype === 'none' ? 0 : cval }) : null
-  const noCom = breakdown({ price: pkgPrice, cost: r.pkg.cost, standard: r.pkg.standard, feePct: fee })
-  const childNoCom = has.c ? breakdown({ price: Number(p.c) || 0, cost: r.cc, standard: r.rc, feePct: fee }) : null
+  const showA = r.unit !== 'trip'
+  const showT = r.unit !== 'person'
+  const v = Object.fromEntries(Object.entries(sup).map(([k, x]) => [k, num(x) ?? 0]))
+  const anyOurs = ['a', 'c', 't'].some((k) => ours[k] !== '')
+  const live = derive(
+    {
+      ...r, rec_adult: v.ra, rec_child: v.rc, rec_trip: v.rt, cost_adult: v.ca, cost_child: v.cc, cost_trip: v.ct,
+      offer_id: anyOurs ? r.offer_id || 'new' : null, offer_starts: null, offer_adult: num(ours.a), offer_child: num(ours.c), offer_trip: num(ours.t),
+      sellable: sellable(v.ra, v.rt, v.ca, v.ct, fee, fl),
+    },
+    settings,
+    today
+  )
+
+  const rows = [
+    showA && { k: 'a', name: 'Adult', buy: 'ca', mkt: 'ra' },
+    showA && { k: 'c', name: 'Child', buy: 'cc', mkt: 'rc' },
+    showT && { k: 't', name: r.unit === 'trip' ? 'Booking' : 'Vehicle', buy: 'ct', mkt: 'rt' },
+  ].filter(Boolean)
+  const lineFor = (k) => {
+    if (k === 'c' && !live.childOk) {
+      const price = live.price.a || 0
+      return { price, cost: v.ca, asAdult: true, ...lineMoney(price, v.ca) }
+    }
+    const price = live.price[k] || 0
+    const cost = k === 'a' ? v.ca : k === 'c' ? v.cc : v.ct
+    return { price, cost, ...lineMoney(price, cost) }
+  }
+  function lineMoney(price, cost) {
+    const pg = (price * fee) / 100
+    const keeps = price - pg - cost
+    return { pg, keeps, margin: price > 0 ? (keeps / price) * 100 : 0, breakEven: cost / (1 - fee / 100) }
+  }
+
+  const b = breakdown({ ...live.pkg, feePct: fee, commissionType: ctype, commissionValue: ctype === 'none' ? 0 : cval })
 
   const problems = []
   const warnings = []
-  for (const [k, l, rec] of [['a', 'Adult', r.ra], ['c', 'Child', r.rc], ['t', 'Vehicle', r.rt]]) {
-    if (!has[k]) continue
-    const v = Number(p[k])
-    if (!(v > 0)) problems.push(`${l} price is missing.`)
-    else if (v > rec) warnings.push(`${l} price is above the standard price (${fmt(rec)}), so no saving shows to customers.`)
+  if (Object.values(sup).some((x) => x !== '' && (isNaN(Number(x)) || Number(x) < 0))) problems.push('Prices can’t be negative.')
+  if (showA && !(v.ra > 0)) problems.push('Add the adult market price.')
+  if (r.unit === 'trip' && !(v.rt > 0)) problems.push('Add the market price.')
+  for (const row of rows) {
+    const o = ours[row.k]
+    if (o !== '' && !(Number(o) > 0)) problems.push(`${row.name}: our price must be more than zero.`)
+    const l = lineFor(row.k)
+    if (row.k === 'c' && l.asAdult) continue
+    if (l.price > 0 && l.keeps < 0) problems.push(`${row.name} sells at a loss. Break-even is ${fmt(Math.ceil(l.breakEven))}.`)
+    const mkt = v[row.mkt]
+    if (o !== '' && mkt > 0 && Number(o) > mkt) warnings.push(`${row.name}: our price is above the market price, so no saving shows to customers.`)
   }
-  if (noCom.net < 0) problems.push(`This sells at a loss. Break-even is ${fmt(noCom.breakEven)}.`)
-  else if (noCom.net < r.floor) warnings.push(`Profit is under your floor of ${fmt(r.floor)} per booking. It will still sell at this price.`)
-  if (childNoCom && childNoCom.net < 0) problems.push(`The child price sells at a loss. Break-even is ${fmt(childNoCom.breakEven)}.`)
   if (start && end && end < start) problems.push('The offer ends before it starts.')
+  if (!live.sellable && !problems.length) warnings.push(`At the market price this ticket earns less than your floor (${fmt(fl)}), so it stays hidden from the site.`)
+  else if (b.net >= 0 && live.b.net < fl && !problems.length) warnings.push(`Yondo keeps less than your floor of ${fmt(fl)} here. It will still sell at this price.`)
 
-  const changed = ['a', 'c', 't'].some((k) => has[k] && Number(p[k]) !== Number(r.auto[k]))
+  const supChanged = JSON.stringify(sup) !== JSON.stringify(initSup)
+  const offerChanged = JSON.stringify(ours) !== JSON.stringify(initOurs) || label !== (r.offer_label || '') || start !== (r.offer_starts || '') || end !== (r.offer_ends || '')
+  const dirty = supChanged || offerChanged
 
-  async function saveOffer() {
+  async function save() {
     if (demo) return showToast('Example data. Changes are not saved.', 'error')
-    if (problems.length) return
+    if (problems.length || !dirty) return
     setBusy(true)
-    const row = {
-      option_key: r.option_key,
-      label: label.trim().slice(0, 28) || null,
-      sell_adult: has.a ? Number(p.a) : null,
-      sell_child: has.c ? Number(p.c) : null,
-      sell_trip: has.t ? Number(p.t) : null,
-      starts_on: start || null,
-      ends_on: end || null,
-      active: true,
+    const done = []
+    try {
+      if (supChanged) {
+        const fields = { rec_adult: v.ra, rec_child: v.rc, rec_trip: v.rt, cost_adult: v.ca, cost_child: v.cc, cost_trip: v.ct }
+        let q = supabase.from('price_rows').update(fields)
+        q = allPeriods ? q.eq('option_key', r.option_key).gte('period_end', today) : q.eq('id', r.price_row_id)
+        const { error } = await q
+        if (error) throw error
+        done.push('supplier prices')
+      }
+      if (offerChanged) {
+        if (anyOurs) {
+          const row = {
+            option_key: r.option_key, label: label.trim().slice(0, 28) || null, sell_adult: num(ours.a), sell_child: num(ours.c), sell_trip: num(ours.t),
+            starts_on: start || null, ends_on: end || null, active: true,
+          }
+          const { error } = r.offer_id ? await supabase.from('price_overrides').update(row).eq('id', r.offer_id) : await supabase.from('price_overrides').insert(row)
+          if (error) throw error
+          done.push('our price')
+        } else if (r.offer_id) {
+          const { error } = await supabase.from('price_overrides').update({ active: false }).eq('id', r.offer_id)
+          if (error) throw error
+          done.push('automatic price')
+        }
+      }
+      showToast(`Saved ${done.join(' and ')}. The site is using it now.`)
+      onSaved()
+      onClose()
+    } catch {
+      showToast(done.length ? `Saved ${done.join(' and ')}, but not the rest. Refresh and check.` : 'Could not save. Nothing was changed.', 'error')
+      if (done.length) onSaved()
     }
-    const res = r.offer_id ? await supabase.from('price_overrides').update(row).eq('id', r.offer_id) : await supabase.from('price_overrides').insert(row)
     setBusy(false)
-    if (res.error) return showToast('Could not save the offer.', 'error')
-    showToast(r.offer_id ? 'Offer updated. It is live on the site.' : start > todayUAE() ? 'Offer scheduled' : 'Offer saved. It is live on the site.')
-    onSaved()
-    onClose()
   }
-  async function removeOffer() {
-    if (demo) return showToast('Example data. Changes are not saved.', 'error')
-    setBusy(true)
-    const { error } = await supabase.from('price_overrides').update({ active: false }).eq('id', r.offer_id)
-    setBusy(false)
-    if (error) return showToast('Could not end the offer.', 'error')
-    showToast('Offer ended. Back to the automatic price.')
-    onSaved()
-    onClose()
-  }
+
   async function saveDiscount() {
     if (demo) return showToast('Example data. Changes are not saved.', 'error')
-    const v = disc === '' ? null : Math.min(60, Math.max(0, Number(disc)))
-    const { error } = await supabase.from('experiences').update({ discount_pct: v }).eq('id', r.experience_id)
+    const val = disc === '' ? null : Math.min(60, Math.max(0, Number(disc)))
+    const { error } = await supabase.from('experiences').update({ discount_pct: val }).eq('id', r.experience_id)
     if (error) return showToast('Could not save.', 'error')
-    showToast(v == null ? 'Using the site discount again' : `${r.experience}: ${v}% off every ticket`)
+    showToast(val == null ? 'Using the site discount again' : `${r.experience}: ${val}% off every ticket`)
     onSaved()
   }
 
-  const priceInput = (k, l, std, cost) =>
-    has[k] && (
-      <div className="ticket-price-row" key={k}>
-        <Field id={`tp-${k}`} label={`${l} price (AED)`}>
-          <input id={`tp-${k}`} type="number" min={0} step="1" value={p[k]} onChange={(e) => setP({ ...p, [k]: e.target.value })} inputMode="decimal" />
-        </Field>
-        <div className="tpr-facts">
-          <span>
-            Buy <strong>{fmt(cost)}</strong>
-          </span>
-          <span>
-            Standard <strong>{fmt(std)}</strong>
-          </span>
-          <span>
-            Auto <strong>{r.auto[k] != null ? fmt(r.auto[k]) : '—'}</strong>
-          </span>
-        </div>
-      </div>
-    )
+  const leadPriceSetter = (p) => {
+    const extra = live.lead === 'a' && showT ? live.price.t || 0 : 0
+    setOurs({ ...ours, [live.lead]: String(Math.max(1, Math.ceil(p - extra))) })
+  }
 
   return (
     <Sheet open onClose={onClose} title={r.ticket} wide>
       <div className="ticket-sheet">
         <p className="muted">
-          {r.experience} · {CAT[r.category]?.label} · {unitLabel(r)} · prices valid {niceDate(r.period_start, { day: 'numeric', month: 'short' })} to{' '}
+          {r.experience} · {CAT[r.category]?.label} · {unitLabel(r)} · price period {niceDate(r.period_start, { day: 'numeric', month: 'short' })} to{' '}
           {niceDate(r.period_end, { day: 'numeric', month: 'short', year: 'numeric' })}
         </p>
-        {r.status === 'hidden' && (
-          <Notice tone="info">
-            Hidden from the site: at the standard price this ticket earns less than your floor of {fmt(r.floor)}. Lower the floor in Settings to
-            show it.
-          </Notice>
+
+        <div className="table-wrap">
+          <table className="price-grid">
+            <thead>
+              <tr>
+                <th />
+                <th className="num">Buying price</th>
+                <th className="num">Market price</th>
+                <th className="num">Our price</th>
+                <th className="num">PG {fee}%</th>
+                <th className="num">Yondo keeps</th>
+                <th className="num">Margin</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const l = lineFor(row.k)
+                const auto = live.auto[row.k]
+                const childAsAdult = row.k === 'c' && l.asAdult
+                return (
+                  <tr key={row.k}>
+                    <th scope="row">{row.name}</th>
+                    <td className="num">
+                      <input aria-label={`${row.name} buying price`} type="number" min={0} step="0.01" inputMode="decimal" value={sup[row.buy]} onChange={(e) => setSup({ ...sup, [row.buy]: e.target.value })} />
+                    </td>
+                    <td className="num">
+                      <input aria-label={`${row.name} market price`} type="number" min={0} step="0.01" inputMode="decimal" value={sup[row.mkt]} onChange={(e) => setSup({ ...sup, [row.mkt]: e.target.value })} />
+                    </td>
+                    <td className="num">
+                      <input
+                        aria-label={`${row.name} our price`}
+                        className={ours[row.k] !== '' ? 'set' : ''}
+                        type="number"
+                        min={0}
+                        step="1"
+                        inputMode="decimal"
+                        disabled={childAsAdult}
+                        placeholder={childAsAdult ? 'Adult price' : auto != null ? `Auto ${auto}` : ''}
+                        value={ours[row.k]}
+                        onChange={(e) => setOurs({ ...ours, [row.k]: e.target.value })}
+                      />
+                    </td>
+                    <td className="num">{l.price ? `−${fmt(r2(l.pg))}` : '—'}</td>
+                    <td className={`num strong ${l.keeps < 0 ? 'neg' : l.keeps < fl ? 'warn-text' : 'pos'}`}>{l.price ? fmt(r2(l.keeps)) : '—'}</td>
+                    <td className="num">{l.price ? <MarginBar pct={r2(l.margin)} /> : '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="fine grid-notes">
+          Leave <strong>Our price</strong> empty to use the automatic price: market price minus {Number(live.discount_pct)}%, never under your floor.
+          {live.combined && ' Customers pay the adult (and child) price per person plus one vehicle price per booking.'}
+          {showA && !live.childOk && ' Children pay the adult price while the child figures leave no margin.'}
+          <br />
+          Supplier prices last updated {updatedLine(r) || 'with the last price list'}. The next Excel upload replaces buying and market prices; your own prices stay.
+        </p>
+        {r.periods > 1 && supChanged && (
+          <label className="check">
+            <input type="checkbox" checked={allPeriods} onChange={(e) => setAllPeriods(e.target.checked)} />
+            <span>Apply these buying and market prices to all {r.periods} price periods of this ticket, not just this one</span>
+          </label>
         )}
+
         <div className="ts-grid">
           <section>
-            <h3>{r.offer_id ? 'Edit offer' : 'Create an offer'}</h3>
-            {priceInput('a', 'Adult', r.ra, r.ca)}
-            {priceInput('c', 'Child', r.rc, r.cc)}
-            {priceInput('t', r.unit === 'trip' ? 'Booking' : 'Vehicle', r.rt, r.ct)}
-            <Solvers idp="tp-sv" opts={{ ...opts }} onPrice={(v) => setP({ ...p, [lead]: String(Math.max(0, Math.ceil(v - (lead === 'a' && has.t ? Number(p.t) || 0 : 0)))) })} />
-            <Field id="tp-label" label="Badge on the site" optional hint="Shows on the ticket and the experience card, e.g. Winter deal or Student price.">
-              <input id="tp-label" value={label} maxLength={28} onChange={(e) => setLabel(e.target.value)} placeholder="Winter deal" />
+            <h3>Offer badge and dates</h3>
+            <p className="muted small">Used when you set your own price. Leave empty for a plain special price that runs until you change it.</p>
+            <Field id="tp-label" label="Badge on the site" optional>
+              <input id="tp-label" value={label} maxLength={28} onChange={(e) => setLabel(e.target.value)} placeholder="Winter deal" disabled={!anyOurs} />
             </Field>
             <div className="two">
               <Field id="tp-start" label="Starts" optional>
-                <input id="tp-start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+                <input id="tp-start" type="date" value={start} onChange={(e) => setStart(e.target.value)} disabled={!anyOurs} />
               </Field>
               <Field id="tp-end" label="Ends" optional>
-                <input id="tp-end" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} />
+                <input id="tp-end" type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} disabled={!anyOurs} />
               </Field>
             </div>
-            {problems.map((m) => (
-              <Notice key={m} tone="error">
-                {m}
-              </Notice>
-            ))}
-            {warnings.map((m) => (
-              <Notice key={m} tone="info">
-                {m}
-              </Notice>
-            ))}
-            <div className="btn-row">
-              <button className="btn gold" disabled={busy || problems.length > 0 || (!changed && !r.offer_id && !label)} onClick={saveOffer}>
-                {r.offer_id ? 'Save offer' : 'Publish offer'}
-              </button>
-              {r.offer_id && (
-                <button className="btn ghost" disabled={busy} onClick={removeOffer}>
-                  End offer
-                </button>
-              )}
-            </div>
+            <Solvers idp="tp-sv" opts={{ cost: live.pkg.cost, feePct: fee, commissionType: ctype, commissionValue: ctype === 'none' ? 0 : cval, units: 1 }} onPrice={leadPriceSetter} />
           </section>
           <section>
-            <h3>The numbers</h3>
-            <p className="muted small">
-              One {r.unit === 'person+trip' ? 'person plus the vehicle' : r.unit === 'trip' ? 'booking' : 'adult'}, at the price on the left.
-            </p>
+            <h3>One {r.unit === 'person+trip' ? 'person plus vehicle' : r.unit === 'trip' ? 'booking' : 'adult'}, with a referral code</h3>
             <CommissionPicker idp="tp" type={ctype} value={cval} onType={setCtype} onValue={setCval} />
-            <Breakdown b={b} floor={r.floor} commissionLabel="Referral commission" />
-            {bChild && (
-              <p className="small muted child-line">
-                Child ticket: customer pays {fmt(bChild.price)}, Yondo keeps <strong>{fmt(bChild.net)}</strong> ({pct(bChild.marginPct)}).
-              </p>
-            )}
+            <Breakdown b={b} floor={fl} label="Customer pays" commissionLabel="Referral commission" />
           </section>
         </div>
+
+        {problems.map((m) => (
+          <Notice key={m} tone="error">
+            {m}
+          </Notice>
+        ))}
+        {warnings.map((m) => (
+          <Notice key={m} tone="info">
+            {m}
+          </Notice>
+        ))}
+        <div className="btn-row">
+          <button className="btn gold" disabled={busy || !dirty || problems.length > 0} onClick={save}>
+            {busy ? 'Saving…' : 'Save changes'}
+          </button>
+          {anyOurs && (
+            <button className="btn ghost" onClick={() => setOurs({ a: '', c: '', t: '' })}>
+              Use automatic price
+            </button>
+          )}
+          <button className="btn ghost" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+
         <section className="ts-bulk">
           <h3>Whole experience</h3>
           <p className="muted small">
-            Instead of a fixed price, take a percentage off the standard price of every {r.experience} ticket. Tickets never go under your floor.
+            Take a percentage off the market price of every {r.experience} ticket that doesn't have its own price. Tickets never go under your floor.
             Site default: {Number(settings.site_discount_pct)}%.
           </p>
           <div className="inline-edit">
@@ -590,6 +687,53 @@ function TicketSheet({ r, settings, demo, onClose, onSaved }) {
       </div>
     </Sheet>
   )
+}
+
+// Compact list of one experience's tickets (used in the Catalogue editor).
+export function TicketList({ rows, onOpen }) {
+  if (!rows) return <p className="muted small">Loading prices…</p>
+  if (!rows.length) return <p className="muted small">No current prices for this experience. Upload a price list that includes it.</p>
+  return (
+    <ul className="ticket-list">
+      {rows.map((r) => (
+        <li key={r.option_key}>
+          <button type="button" onClick={() => onOpen(r)}>
+            <span className="tl-head">
+              <strong>{r.ticket}</strong>
+              <span className={`pill p-${r.status}`}>{STATUS_LABEL[r.status]}</span>
+            </span>
+            <span className="tl-figs">
+              <span>
+                Buy <b>{fmt(r.pkg.cost)}</b>
+              </span>
+              <span>
+                Market <b>{fmt(r.pkg.standard)}</b>
+              </span>
+              <span>
+                Ours <b>{fmt(r.pkg.price)}</b>
+              </span>
+              <span>
+                PG <b>{fmt(r.b.fee)}</b>
+              </span>
+              <span>
+                Keeps <b className={r.b.net < r.floor ? 'neg' : 'pos'}>{fmt(r.b.net)}</b> ({pct(r.b.marginPct)})
+              </span>
+            </span>
+            <small className="muted">Updated {updatedLine(r)}</small>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export async function loadPricing(demo, experienceId) {
+  if (demo) return DEMO_PRICING.filter((r) => experienceId == null || r.experience_id === experienceId)
+  let q = supabase.from('admin_option_pricing').select('*').limit(2000)
+  if (experienceId != null) q = q.eq('experience_id', experienceId)
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
 }
 
 // ------------------------------------------------------------ offers list
@@ -680,13 +824,13 @@ function OffersList({ offers, byKey, today, demo, onChange, onOpen }) {
 
 // ------------------------------------------------------------ example data (preview only; illustrative numbers)
 const ex = (o) => ({
-  experience_id: 1, category: 'thrill', experience_hidden: false, experience_discount: null, period_start: '2026-10-01', period_end: '2027-05-31',
+  experience_id: 99, price_row_id: 0, periods: 1, updated_at: new Date(Date.now() - 864e5).toISOString(), updated_by: null, source_file: 'pricelist_5.xlsx', category: 'thrill', experience_hidden: false, experience_discount: null, period_start: '2026-10-01', period_end: '2027-05-31',
   cost_child: 0, rec_child: 0, cost_trip: 0, rec_trip: 0, discount_pct: 5, sellable: true, fee_pct: 5, floor: 5, unit: 'person',
   offer_id: null, offer_label: null, offer_starts: null, offer_ends: null, offer_adult: null, offer_child: null, offer_trip: null, ...o,
 })
 const DEMO_PRICING = [
-  ex({ option_key: 'ex-1', experience: 'Example theme park', ticket: 'Open-dated ticket', cost_adult: 80, rec_adult: 120, rec_child: 110, cost_child: 75, offer_id: 1, offer_label: 'Winter deal', offer_adult: 100 }),
-  ex({ option_key: 'ex-2', experience: 'Example theme park', ticket: 'Fast track add-on', cost_adult: 150, rec_adult: 200 }),
+  ex({ option_key: 'ex-1', experience_id: 1, experience: 'Example theme park', ticket: 'Open-dated ticket', cost_adult: 80, rec_adult: 120, rec_child: 110, cost_child: 75, offer_id: 1, offer_label: 'Winter deal', offer_adult: 100 }),
+  ex({ option_key: 'ex-2', experience_id: 1, updated_by: 'harrsh@yondo.global', updated_at: new Date().toISOString(), experience: 'Example theme park', ticket: 'Fast track add-on', cost_adult: 150, rec_adult: 200 }),
   ex({ option_key: 'ex-3', experience: 'Example desert safari', category: 'desert', ticket: 'Shared car, evening', cost_adult: 110, rec_adult: 150 }),
   ex({ option_key: 'ex-4', experience: 'Example yacht', category: 'sea', ticket: 'Private yacht, 2 hours', unit: 'trip', rec_adult: 0, cost_adult: 0, rec_trip: 1200, cost_trip: 950 }),
   ex({ option_key: 'ex-5', experience: 'Example observation deck', category: 'sky', ticket: 'Prime hours', cost_adult: 195, rec_adult: 220 }),

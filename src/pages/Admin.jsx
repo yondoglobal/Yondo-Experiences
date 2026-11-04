@@ -7,7 +7,7 @@ import { CATEGORIES, CAT, todayUAE } from '../lib/catalogue.js'
 import { Icon } from '../components/Icon.jsx'
 import { Field, Notice, Sheet, CopyButton, Mascot, Photo } from '../components/ui.jsx'
 import { PLACE_PHOTOS } from '../lib/photos.js'
-import Pricing from './admin/Pricing.jsx'
+import Pricing, { TicketSheet, TicketList, derive, loadPricing } from './admin/Pricing.jsx'
 import Website from './admin/Website.jsx'
 import ImageField from './admin/ImageField.jsx'
 import { CODE_COMMISSION_TYPES } from './admin/money.js'
@@ -847,6 +847,25 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
   const [filter, setFilter] = useState('')
   const [view, setView] = useState('all')
   const [edit, setEdit] = useState(null)
+  const [ticket, setTicket] = useState(null)
+  const [prices, setPrices] = useState(null)
+  const loadPrices = useCallback(async () => {
+    try {
+      setPrices(await loadPricing(demo))
+    } catch {
+      setPrices([])
+    }
+  }, [demo])
+  useEffect(() => {
+    loadPrices()
+  }, [loadPrices])
+  const byExp = useMemo(() => {
+    const today = todayUAE()
+    const m = {}
+    for (const r of prices || []) (m[r.experience_id] ||= []).push(derive(r, settings, today))
+    for (const k of Object.keys(m)) m[k].sort((a, b) => a.pkg.price - b.pkg.price)
+    return m
+  }, [prices, settings])
   const needPhoto = experiences.filter((e) => !e.hidden && photoKind(e)[0] === 'activity').length
   const list = experiences.filter((e) => {
     if (view === 'photo' && (e.hidden || photoKind(e)[0] !== 'activity')) return false
@@ -892,8 +911,8 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
                 <th>Photo</th>
                 <th>Name on site</th>
                 <th>Category</th>
+                <th>Prices</th>
                 <th className="num">Yondo discount</th>
-                <th className="num">Room at your floor</th>
                 <th>Featured</th>
                 <th>Shown</th>
                 <th />
@@ -918,13 +937,12 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
                       {e.offer_label && <span className="offer-tag inline">{e.offer_label}</span>}
                     </td>
                     <td>{CAT[e.category]?.label || e.category}</td>
+                    <td>
+                      <PriceSummary rows={byExp[e.id]} loading={prices === null} />
+                    </td>
                     <td className="num">
                       {e.discount_pct != null ? `${Number(e.discount_pct)}%` : `${siteD}%`}
                       <small>{e.discount_pct != null ? 'own setting' : 'site default'}</small>
-                    </td>
-                    <td className="num">
-                      {e.room?.room_min_pct != null ? `${Math.max(0, e.room.room_min_pct)}–${Math.max(0, e.room.room_max_pct)}%` : '—'}
-                      <small>max % off before the floor</small>
                     </td>
                     <td>
                       <label className="switch">
@@ -952,11 +970,26 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
           </table>
         </div>
       </div>
+      {ticket && (
+        <TicketSheet
+          r={ticket}
+          settings={settings}
+          demo={demo}
+          onClose={() => setTicket(null)}
+          onSaved={() => {
+            loadPrices()
+            onChange()
+          }}
+        />
+      )}
       {edit && (
         <EditExperience
           e={edit}
           siteD={siteD}
           demo={demo}
+          hidden={!!ticket}
+          tickets={prices === null ? null : byExp[edit.id] || []}
+          onOpenTicket={setTicket}
           onClose={() => setEdit(null)}
           onSave={(fields) => {
             save(edit.id, fields)
@@ -968,14 +1001,32 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
   )
 }
 
-function EditExperience({ e, siteD, demo, onClose, onSave }) {
+function PriceSummary({ rows, loading }) {
+  if (loading) return <span className="muted">…</span>
+  if (!rows?.length) return <span className="muted">No current prices</span>
+  const live = rows.filter((r) => r.status !== 'hidden')
+  const margins = live.map((r) => r.b.marginPct)
+  const latest = rows.reduce((m, r) => (r.updated_at > m ? r.updated_at : m), '')
+  return (
+    <>
+      {live.length ? `From ${aed(Math.min(...live.map((r) => r.pkg.price)))}` : 'All hidden'}
+      <small>
+        {rows.length} {rows.length === 1 ? 'ticket' : 'tickets'}
+        {margins.length ? ` · margin ${Math.round(Math.min(...margins))}–${Math.round(Math.max(...margins))}%` : ''}
+      </small>
+      {latest && <small>Updated {niceDate(latest, { day: 'numeric', month: 'short' })}</small>}
+    </>
+  )
+}
+
+function EditExperience({ e, siteD, demo, hidden, tickets, onOpenTicket, onClose, onSave }) {
   const [f, setF] = useState({
     name: e.name, category: e.category, emirate: e.emirate || '', blurb: e.blurb || '', image_url: e.image_url || '', image_key: e.image_key || '',
     image_credit: e.image_credit || '', offer_label: e.offer_label || '', sort: e.sort || 0, discount_pct: e.discount_pct ?? '',
   })
   const set = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
   return (
-    <Sheet open onClose={onClose} title={`Edit ${e.name}`}>
+    <Sheet open={!hidden} onClose={onClose} title={`Edit ${e.name}`}>
       <form
         className="form-grid"
         onSubmit={(ev) => {
@@ -1004,6 +1055,11 @@ function EditExperience({ e, siteD, demo, onClose, onSave }) {
           onChange={(v) => setF(/^https?:/.test(v) ? { ...f, image_url: v } : v ? { ...f, image_key: v, image_url: '' } : { ...f, image_url: '', image_key: e.image_key })}
           hint="Best: the supplier's official photo (ask for their media kit). Landscape, at least 1600px wide. Only use photos you have the rights to."
         />
+        <div className="field">
+          <span className="image-field-label">Tickets and prices</span>
+          <TicketList rows={tickets} onOpen={onOpenTicket} />
+          <small className="hint">Tap a ticket to change its buying price, market price or our price.</small>
+        </div>
         <Field id="ee-name" label="Name on site">
           <input id="ee-name" value={f.name} onChange={set('name')} maxLength={60} />
         </Field>
