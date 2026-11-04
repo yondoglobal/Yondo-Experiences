@@ -6,7 +6,7 @@ import { aed, niceDate, guestLine } from '../lib/format.js'
 import { DEFAULT_TIERS } from '../lib/catalogue.js'
 import { BADGES, badgesFor, stampsFrom, tierFor, EXAMPLE_PASSPORT } from '../lib/passport.js'
 import { Icon } from '../components/Icon.jsx'
-import { Field, Notice, Mascot, Sheet, MASCOT } from '../components/ui.jsx'
+import { Field, Notice, Mascot, Sheet, MASCOT, to } from '../components/ui.jsx'
 import { PassportCover, PassportDataPage, Stamp, BadgeTile, TierTrack } from '../components/PassportParts.jsx'
 import { STATUS_STEPS } from './Track.jsx'
 
@@ -16,9 +16,6 @@ export default function Passport() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    document.title = 'Your passport | Yondo Experiences'
-  }, [])
 
   const load = useCallback(async () => {
     if (!session) return
@@ -241,7 +238,7 @@ function PassportView({ data, tiers, onRefresh, email }) {
               <div className="stamps-empty">
                 <Mascot pose="pointUp" alt="" />
                 <p>Your first stamp lands here after your first experience.</p>
-                <a className="btn gold" href="#explore">
+                <a className="btn gold" href={to('explore')}>
                   Find something to do
                 </a>
               </div>
@@ -314,7 +311,17 @@ function PassportView({ data, tiers, onRefresh, email }) {
 function EditProfile({ open, onClose, profile, onSaved }) {
   const [f, setF] = useState({ name: profile.fullName || '', uni: profile.university || '', phone: profile.phone || '' })
   const [busy, setBusy] = useState(false)
+  const [mk, setMk] = useState(null)
+  const [mk0, setMk0] = useState(null)
   useEffect(() => setF({ name: profile.fullName || '', uni: profile.university || '', phone: profile.phone || '' }), [profile, open])
+  useEffect(() => {
+    if (!open) return
+    api.myMarketing().then((v) => {
+      const b = v === true
+      setMk(b)
+      setMk0(b)
+    })
+  }, [open])
   return (
     <Sheet open={open} onClose={onClose} title="Your details">
       <form
@@ -323,6 +330,7 @@ function EditProfile({ open, onClose, profile, onSaved }) {
           e.preventDefault()
           setBusy(true)
           await api.updateProfile(f.name, f.uni, f.phone)
+          if (mk !== null && mk !== mk0) await api.setMarketing(mk)
           setBusy(false)
           onSaved()
         }}
@@ -336,6 +344,10 @@ function EditProfile({ open, onClose, profile, onSaved }) {
         <Field id="ep-phone" label="WhatsApp number" optional>
           <input id="ep-phone" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} inputMode="tel" />
         </Field>
+        <label className="check soft">
+          <input type="checkbox" checked={!!mk} disabled={mk === null} onChange={(e) => setMk(e.target.checked)} />
+          <span>Email me new experiences and student deals. You can unsubscribe any time.</span>
+        </label>
         <button className="btn gold" disabled={busy}>
           {busy ? 'Saving…' : 'Save details'}
         </button>

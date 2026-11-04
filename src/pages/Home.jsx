@@ -4,7 +4,7 @@ import { CATEGORIES, recommendedRank } from '../lib/catalogue.js'
 import { BRAND } from '../lib/config.js'
 import { waLink } from '../lib/format.js'
 import { Icon, CAT_ICON } from '../components/Icon.jsx'
-import { Mascot, Photo, TicketCard, navigate } from '../components/ui.jsx'
+import { Mascot, Photo, TicketCard, navigate, to } from '../components/ui.jsx'
 import { PassportCover, Stamp } from '../components/PassportParts.jsx'
 import { EXAMPLE_PASSPORT, BADGES } from '../lib/passport.js'
 import { imageProps } from '../lib/content.js'
@@ -52,6 +52,7 @@ export default function Home() {
       <section className="hero">
         <div className="wrap hero-grid">
           <div className="hero-copy">
+            {C.hero.kicker && <p className="hero-kicker">{C.hero.kicker}</p>}
             <h1 className="hero-title">
               {C.hero.title}{' '}
               <span className="hero-accent">
@@ -155,13 +156,13 @@ export default function Home() {
         <div className="wrap">
           <div className="section-head">
             <h2>{C.sections.vibe}</h2>
-            <a className="text-link" href="#explore">
+            <a className="text-link" href={to('explore')}>
               See all {catalogue.experiences.length} experiences
             </a>
           </div>
           <div className="cat-grid">
             {CATEGORIES.map((c) => (
-              <a key={c.id} className="cat-tile" href={'#explore-' + c.id}>
+              <a key={c.id} className="cat-tile" href={to('explore-' + c.id)}>
                 <Photo {...imageProps(c.image, c.img)} cat={c.id} w={520} h={360} sizes="(max-width: 700px) 46vw, 280px" />
                 <div className="cat-tile-body">
                   <span className="cat-icon">
@@ -212,7 +213,7 @@ export default function Home() {
               ))}
             </ul>
             <div className="promo-actions">
-              <a className="btn gold" href="#passport">
+              <a className="btn gold" href={to('passport')}>
                 Open your passport
               </a>
             </div>
@@ -233,13 +234,13 @@ export default function Home() {
         <div className="wrap">
           <div className="section-head">
             <h2>{C.sections.curated}</h2>
-            <a className="text-link" href="#trips">
+            <a className="text-link" href={to('trips')}>
               Ask for a quote
             </a>
           </div>
           <div className="curated-grid">
             {C.curated.map(({ title: t, text: d, image: img, cat }) => (
-              <a key={t} className="curated-card" href="#trips">
+              <a key={t} className="curated-card" href={to('trips')}>
                 <Photo {...imageProps(img)} cat={cat || 'trips'} w={560} h={380} sizes="(max-width: 700px) 90vw, 280px" />
                 <div>
                   <strong>{t}</strong>

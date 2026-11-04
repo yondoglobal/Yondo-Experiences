@@ -9,6 +9,8 @@ import { Field, Notice, Sheet, CopyButton, Mascot, Photo } from '../components/u
 import { PLACE_PHOTOS } from '../lib/photos.js'
 import Pricing, { TicketSheet, TicketList, derive, loadPricing, unitLabel, updatedLine, groupLine } from './admin/Pricing.jsx'
 import Website from './admin/Website.jsx'
+import Customers from './admin/Customers.jsx'
+import Activity, { useLiveActivity } from './admin/Activity.jsx'
 import ImageField from './admin/ImageField.jsx'
 import { CODE_COMMISSION_TYPES } from './admin/money.js'
 
@@ -165,6 +167,14 @@ function AdminSignIn({ onDemo }) {
 function Dashboard({ demo, onExitDemo }) {
   const { showToast, session } = useApp()
   const tempPassword = !demo && !!session?.user?.user_metadata?.temp_password
+  const live = useLiveActivity(demo)
+  useEffect(() => {
+    // Don't count the admin's own browsing in visitor stats.
+    if (!demo)
+      try {
+        localStorage.setItem('yx.noTrack', '1')
+      } catch {}
+  }, [demo])
   const [tab, setTab] = useState('inbox')
   const [d, setD] = useState({ bookings: [], trips: [], waitlist: [], codes: [], experiences: [], settings: null, imports: [] })
   const [loading, setLoading] = useState(true)
@@ -223,6 +233,8 @@ function Dashboard({ demo, onExitDemo }) {
   const tabs = [
     ['inbox', 'Bookings', newCount],
     ['quotes', 'Quote requests', newTrips],
+    ['activity', 'Activity & alerts', 0],
+    ['customers', 'Customers', 0],
     ['pricing', 'Pricing & offers', 0],
     ['catalogue', 'Catalogue & photos', 0],
     ['codes', 'Referral codes', 0],
@@ -284,6 +296,10 @@ function Dashboard({ demo, onExitDemo }) {
           <Quotes trips={d.trips} demo={demo} onChange={load} />
         ) : tab === 'codes' ? (
           <Codes codes={d.codes} settings={d.settings} demo={demo} onChange={load} />
+        ) : tab === 'activity' ? (
+          <Activity demo={demo} data={d} live={live} onGo={setTab} />
+        ) : tab === 'customers' ? (
+          <Customers demo={demo} />
         ) : tab === 'pricing' ? (
           <Pricing settings={d.settings} demo={demo} onChange={load} />
         ) : tab === 'website' ? (
@@ -427,7 +443,7 @@ function BookingSheet({ b, settings, demo, onClose, onChange }) {
     confirm: `Hi ${first}! Good news: ${b.experience_name} (${b.option_name}) on ${niceDate(b.travel_date)} is available for ${guestLine(b)}.\n\nTotal: ${aed(b.total)}\nPay securely here to lock it in: ${link || '[payment link]'}\n\nRef ${b.ref}. Any questions, just reply here.`,
     reminder: `Hi ${first}, a quick reminder to complete payment for ${b.experience_name} on ${niceDate(b.travel_date)} (ref ${b.ref}): ${link || '[payment link]'}`,
     paid: `Thanks ${first}, payment received for ${b.experience_name} on ${niceDate(b.travel_date)}. Your tickets are coming next. Ref ${b.ref}.`,
-    done: `Hope you loved ${b.experience_name}, ${first}! Your stamp is in your Yondo passport: ${BRAND.site}/#passport\n\nIf you have a minute, a Google review helps us a lot: ${reviewLink}`,
+    done: `Hope you loved ${b.experience_name}, ${first}! Your stamp is in your Yondo passport: ${BRAND.site}/passport/\n\nIf you have a minute, a Google review helps us a lot: ${reviewLink}`,
   }
 
   async function update(fields, toast) {

@@ -17,9 +17,6 @@ const KINDS = [
 const BUDGETS = ['Under AED 150 pp', 'AED 150 to 300 pp', 'AED 300 to 600 pp', 'AED 600+ pp', 'Not sure yet']
 
 export default function Trips() {
-  useEffect(() => {
-    document.title = 'Curated trips | Yondo Experiences'
-  }, [])
   return (
     <div className="trips">
       <section className="trips-hero">
@@ -54,14 +51,14 @@ function QuoteForm() {
   const [kind, setKind] = useState('yacht')
   const [f, setF] = useState({
     title: '', date: '', budget: '', details: '', name: saved.name || '', phone: saved.phone || '+971 ', email: saved.email || '',
-    university: saved.university || '', website: '',
+    university: saved.university || '', website: '', marketing: false,
   })
   const [size, setSize] = useState(6)
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(null)
   const [err, setErr] = useState('')
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
   const k = KINDS.find((x) => x.id === kind)
 
   async function submit(e) {
@@ -174,6 +171,10 @@ function QuoteForm() {
           <label htmlFor="t-website">Website</label>
           <input id="t-website" tabIndex={-1} autoComplete="off" value={f.website} onChange={set('website')} />
         </div>
+        <label className="check soft">
+          <input type="checkbox" checked={f.marketing} onChange={set('marketing')} />
+          <span>Email me new experiences and student deals. You can unsubscribe any time.</span>
+        </label>
         {err && <Notice tone="error">{err}</Notice>}
         <button className="btn gold big" type="submit" disabled={busy}>
           {busy ? 'Sending…' : 'Send quote request'}
@@ -185,10 +186,10 @@ function QuoteForm() {
 
 function Waitlist() {
   const { online } = useApp()
-  const [f, setF] = useState({ name: '', email: '', phone: '', university: '', interest: 'Road trip', website: '' })
+  const [f, setF] = useState({ name: '', email: '', phone: '', university: '', interest: 'Road trip', website: '', marketing: false })
   const [state, setState] = useState('idle')
   const [err, setErr] = useState('')
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
   async function submit(e) {
     e.preventDefault()
     if (f.name.trim().length < 2 || !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(f.email.trim())) {
@@ -241,6 +242,10 @@ function Waitlist() {
               <label htmlFor="w-website">Website</label>
               <input id="w-website" tabIndex={-1} autoComplete="off" value={f.website} onChange={set('website')} />
             </div>
+            <label className="check soft">
+              <input type="checkbox" checked={f.marketing} onChange={set('marketing')} />
+              <span>Also email me other new experiences and student deals.</span>
+            </label>
             {err && <Notice tone="error">{err}</Notice>}
             <button className="btn dark" type="submit" disabled={state === 'busy'}>
               {state === 'busy' ? 'Joining…' : 'Join the list'}

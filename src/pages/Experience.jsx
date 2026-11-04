@@ -4,17 +4,15 @@ import { CAT, estimate, periodFor, todayUAE, addDays, tripNoun, nextGroupTier } 
 import { api } from '../lib/api.js'
 import { aed, niceDate, waLink, normalisePhone } from '../lib/format.js'
 import { photoCredit, photosEnabled } from '../lib/photos.js'
+import { experienceFaq } from '../lib/seo.js'
 import { IS_ARTIFACT, BRAND } from '../lib/config.js'
 import { Icon, CAT_ICON } from '../components/Icon.jsx'
-import { Photo, Stepper, Field, Notice, Mascot, TicketCard, navigate } from '../components/ui.jsx'
+import { Photo, Stepper, Field, Notice, Mascot, TicketCard, navigate, to } from '../components/ui.jsx'
 
 export default function Experience({ slug }) {
   const { catalogue } = useApp()
   const exp = catalogue.bySlug[slug]
 
-  useEffect(() => {
-    if (exp) document.title = `${exp.name} | Yondo Experiences`
-  }, [exp])
 
   if (!exp) {
     return (
@@ -23,7 +21,7 @@ export default function Experience({ slug }) {
         <div>
           <h1>We couldn't find that experience</h1>
           <p>It may have sold out for the season or been renamed.</p>
-          <a className="btn gold" href="#explore">
+          <a className="btn gold" href={to('explore')}>
             Browse all experiences
           </a>
         </div>
@@ -49,9 +47,9 @@ function ExperienceView({ exp }) {
         <div className="exp-banner-shade" />
         <div className="wrap exp-banner-copy">
           <nav className="crumbs" aria-label="Breadcrumb">
-            <a href="#explore">Explore</a>
+            <a href={to('explore')}>Explore</a>
             <Icon name="next" size={14} />
-            <a href={'#explore-' + exp.cat}>{cat?.label}</a>
+            <a href={to('explore-' + exp.cat)}>{cat?.label}</a>
           </nav>
           <h1>{exp.name}</h1>
           {exp.offer && <span className="offer-tag big">{exp.offer}</span>}
@@ -71,6 +69,20 @@ function ExperienceView({ exp }) {
         <div className="exp-main">
           <p className="exp-blurb">{exp.blurb}</p>
           <BookingFlow exp={exp} />
+          <section className="exp-faq" aria-labelledby="exp-faq-title">
+            <h2 id="exp-faq-title">Good to know</h2>
+            <div className="faq-list">
+              {experienceFaq(exp).map(({ q, a }) => (
+                <details key={q}>
+                  <summary>
+                    {q}
+                    <Icon name="down" size={18} />
+                  </summary>
+                  <p>{a}</p>
+                </details>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
 
@@ -79,7 +91,7 @@ function ExperienceView({ exp }) {
           <div className="wrap">
             <div className="section-head">
               <h2>More {cat?.label.toLowerCase()}</h2>
-              <a className="text-link" href={'#explore-' + exp.cat}>
+              <a className="text-link" href={to('explore-' + exp.cat)}>
                 See all
               </a>
             </div>
@@ -461,6 +473,7 @@ function DetailsForm({ summary, option, exp, onBack, onDone }) {
     notes: '',
     website: '',
     agree: false,
+    marketing: false,
   })
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
@@ -504,6 +517,7 @@ function DetailsForm({ summary, option, exp, onBack, onDone }) {
       university: f.university.trim(),
       notes,
       website: f.website,
+      marketing: f.marketing,
     })
     setBusy(false)
     if (r?.ok) {
@@ -549,10 +563,14 @@ function DetailsForm({ summary, option, exp, onBack, onDone }) {
       <label className={`check ${errors.agree ? 'has-error' : ''}`}>
         <input type="checkbox" checked={f.agree} onChange={set('agree')} />
         <span>
-          I've read the <a href="#booking-policy" target="_blank">booking policy</a> and understand this is a request, not a payment.
+          I've read the <a href={to('booking-policy')} target="_blank">booking policy</a> and understand this is a request, not a payment.
         </span>
       </label>
       {errors.agree && <small className="error-text">{errors.agree}</small>}
+      <label className="check soft">
+        <input type="checkbox" checked={f.marketing} onChange={set('marketing')} />
+        <span>Email me new experiences and student deals. You can unsubscribe any time.</span>
+      </label>
       {serverError && <Notice tone="error">{serverError}</Notice>}
       <button className="btn gold block big" type="submit" disabled={busy}>
         {busy ? 'Sending…' : 'Send booking request'}
@@ -638,12 +656,12 @@ function BookingDone({ exp, summary, result, onAnother, session }) {
             <Icon name="whatsapp" size={20} /> {result?.offline ? 'Send on WhatsApp' : 'Message us to speed it up'}
           </a>
           {result?.ref && (
-            <a className="btn ghost" href="#track">
+            <a className="btn ghost" href={to('track')}>
               Track this booking
             </a>
           )}
           {!session && result?.ref && (
-            <a className="btn ghost" href="#passport">
+            <a className="btn ghost" href={to('passport')}>
               <Icon name="book" size={18} /> Save it to your passport
             </a>
           )}

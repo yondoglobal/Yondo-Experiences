@@ -6,6 +6,7 @@ import { CATEGORIES } from './catalogue.js'
 export const DEFAULT_CONTENT = {
   announcement: { on: false, text: '', link: '' },
   hero: {
+    kicker: 'Yondo Experiences · UAE tickets, tours and trips for students',
     title: 'Make the weekend',
     accent: 'count.',
     sub: "Theme parks, desert nights, yachts and day trips across the UAE. Pick a plan, we confirm it on WhatsApp, and you pay only once it's locked in.",
@@ -128,18 +129,22 @@ These terms are governed by the laws of the United Arab Emirates.`,
   },
   privacy: {
     title: 'Privacy',
-    updated: '2026-11-03',
+    updated: '2026-11-04',
     body: `{company} ("Yondo Experiences", "we") is responsible for the personal data you give us on this site. This notice explains what we collect and why.
 
 ## What we collect
 - Booking and quote details: name, WhatsApp number, email, university (optional), the experience, date, guests and any notes you add.
 - Passport details: your email, and the name and university you add to your profile.
 - Referral codes you enter, so the right person gets credit.
+- If you tick the box on a form, your email for occasional news about new experiences and student deals.
+- Anonymous visit data: the pages you view, the site you came from and your device type, linked to a random ID kept in your browser. We don't record your IP address, and we skip this if your browser sends "Do Not Track".
 
 ## Why we use it
 - To check availability, confirm and deliver your booking, and contact you about it.
 - To run your passport (stamps, badges and tiers) and work out referral commission.
 - To keep records we're required to keep.
+- To send marketing emails, only if you agreed. Every email lets you unsubscribe, and you can change your choice in your passport.
+- To understand which pages are useful, so we can improve the site.
 
 We don't sell your data. We share booking details with the supplier only as needed to fulfil your booking.
 

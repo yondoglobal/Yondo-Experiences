@@ -90,9 +90,9 @@ export const CAT_ART = {
 
 export const photosEnabled = !IS_ARTIFACT
 
-export function photoUrl(key, w = 800, h) {
+export function photoUrl(key, w = 800, h, force = false) {
   const p = PHOTOS[key]
-  if (!p || !photosEnabled) return null
+  if (!p || (!photosEnabled && !force)) return null
   const size = h ? `&w=${w}&h=${h}&fit=crop&crop=entropy` : `&w=${w}&fit=max`
   return `https://images.unsplash.com/${p[0]}?auto=format&q=68${size}`
 }

@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Rebuild every night (02:30 Dubai) so search pages, the sitemap and llms.txt carry the latest prices and experiences.
+  schedule:
+    - cron: '30 22 * * *'
 permissions:
   contents: read
   pages: write
@@ -17,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build

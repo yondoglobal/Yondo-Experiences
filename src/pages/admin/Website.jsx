@@ -130,8 +130,8 @@ export default function Website({ settings, demo, onChange }) {
             <Field id="w-an-t" label="Text">
               <input id="w-an-t" maxLength={120} placeholder="Global Village is open: 10% off this week" {...bind('announcement', 'text')} />
             </Field>
-            <Field id="w-an-l" label="Link" optional hint="A page on the site like #x-global-village, or a full https:// link.">
-              <input id="w-an-l" placeholder="#x-global-village" {...bind('announcement', 'link')} />
+            <Field id="w-an-l" label="Link" optional hint="A page on the site like /experiences/global-village/, or a full https:// link.">
+              <input id="w-an-l" placeholder="/experiences/global-village/" {...bind('announcement', 'link')} />
             </Field>
           </>
         ),
@@ -143,6 +143,9 @@ export default function Website({ settings, demo, onChange }) {
         sub: `${c.hero.title} ${c.hero.accent}`,
         children: (
           <>
+            <Field id="w-h-k" label="Small line above the headline" hint="Helps people and search engines see what the site is. Keep 'Yondo Experiences' in it.">
+              <input id="w-h-k" maxLength={90} {...bind('hero', 'kicker')} />
+            </Field>
             <div className="two">
               <Field id="w-h-t" label="Headline">
                 <input id="w-h-t" maxLength={60} {...bind('hero', 'title')} />

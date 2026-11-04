@@ -23,9 +23,6 @@ export default function Explore({ cat }) {
   const [sort, setSort] = useState('recommended')
   const active = cat && CAT[cat] ? cat : ''
 
-  useEffect(() => {
-    document.title = (active ? CAT[active].label + ' in the UAE' : 'Explore experiences') + ' | Yondo Experiences'
-  }, [active])
 
   const results = useMemo(() => {
     let list = catalogue.experiences

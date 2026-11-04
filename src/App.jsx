@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import { BUNDLED, CATEGORIES } from './lib/catalogue.js'
 import { DEFAULT_CONTENT, mergeContent, applyContent } from './lib/content.js'
+import { metaFor } from './lib/seo.js'
+import { trackPage } from './lib/track.js'
 import { loadCatalogue, cachedCatalogue, supabase, onOnline, isOnline, AUTH_LINK, AUTH_LINK_ERROR } from './lib/api.js'
 import { BRAND, IS_ARTIFACT } from './lib/config.js'
 import { waLink } from './lib/format.js'
 import { Icon } from './components/Icon.jsx'
-import { Brand, navigate } from './components/ui.jsx'
+import { Brand, navigate, to as toHref, PATH_MODE, keyToPath, pathToKey } from './components/ui.jsx'
 import Home from './pages/Home.jsx'
 import Explore from './pages/Explore.jsx'
 import Experience from './pages/Experience.jsx'
@@ -31,16 +33,39 @@ function takeReturnTo() {
 }
 export const useApp = () => useContext(AppCtx)
 
-function readRoute() {
-  const h = decodeURIComponent(window.location.hash.replace(/^#/, ''))
-  if (/access_token=|error_description=|type=magiclink/.test(h)) return { name: 'auth' }
+export function routeFromKey(h) {
   if (!h || h === 'home') return { name: 'home' }
+  if (h.startsWith('notfound:')) return { name: 'notfound', path: h.slice(9) }
   if (h === 'explore') return { name: 'explore' }
   if (h.startsWith('explore-')) return { name: 'explore', cat: h.slice(8) }
   if (h.startsWith('x-')) return { name: 'experience', slug: h.slice(2) }
   if (['trips', 'passport', 'track', 'admin'].includes(h)) return { name: h }
   if (['terms', 'privacy', 'booking-policy', 'about'].includes(h)) return { name: 'legal', page: h }
   return { name: 'home' }
+}
+
+function hashKey() {
+  try {
+    return decodeURIComponent(window.location.hash.replace(/^#/, ''))
+  } catch {
+    return ''
+  }
+}
+
+function readRoute() {
+  const h = hashKey()
+  if (/access_token=|error_description=|type=magiclink/.test(h)) return { name: 'auth' }
+  if (!PATH_MODE) return routeFromKey(h)
+  // Old links like /#x-global-village still work.
+  if (h && !h.includes('=') && h !== 'main-content') return routeFromKey(h)
+  return routeFromKey(pathToKey(window.location.pathname))
+}
+
+export function routeKey(r) {
+  if (r.name === 'explore') return r.cat ? 'explore-' + r.cat : 'explore'
+  if (r.name === 'experience') return 'x-' + r.slug
+  if (r.name === 'legal') return r.page
+  return r.name
 }
 
 function readRefCode() {
@@ -57,9 +82,9 @@ function readRefCode() {
   return ''
 }
 
-export default function App() {
-  const [route, setRoute] = useState(readRoute)
-  const [catalogue, setCatalogue] = useState(() => cachedCatalogue() || BUNDLED)
+export default function App({ ssrRoute, ssrCatalogue }) {
+  const [route, setRoute] = useState(() => ssrRoute || readRoute())
+  const [catalogue, setCatalogue] = useState(() => ssrCatalogue || cachedCatalogue() || BUNDLED)
   const [online, setOnlineState] = useState(isOnline())
   const [session, setSession] = useState(null)
   const [query, setQuery] = useState('')
@@ -67,14 +92,61 @@ export default function App() {
   const [toast, setToast] = useState(null)
 
   useEffect(() => {
-    const on = () => {
+    const on = (e) => {
       if (pendingAuth && !window.location.hash.replace('#', '')) return
-      setRoute(readRoute())
-      window.scrollTo({ top: 0, behavior: 'instant' in document.documentElement.style ? 'instant' : 'auto' })
+      const r = readRoute()
+      // Move old #links to their real address.
+      if (PATH_MODE && r.name !== 'auth' && hashKey() && !hashKey().includes('=') && hashKey() !== 'main-content') {
+        window.history.replaceState(null, '', keyToPath(routeKey(r)) + window.location.search)
+      }
+      setRoute(r)
+      if (e?.type !== 'popstate') window.scrollTo({ top: 0, behavior: 'instant' in document.documentElement.style ? 'instant' : 'auto' })
     }
+    on({ type: 'init' })
     window.addEventListener('hashchange', on)
-    return () => window.removeEventListener('hashchange', on)
+    window.addEventListener('popstate', on)
+    window.addEventListener('yx:route', on)
+    // Internal links change the page without a reload.
+    const click = (e) => {
+      if (!PATH_MODE || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const a = e.target.closest?.('a[href]')
+      if (!a || (a.target && a.target !== '_self') || a.hasAttribute('download')) return
+      const href = a.getAttribute('href')
+      if (!href || !href.startsWith('/') || href.startsWith('//')) return
+      const url = new URL(href, window.location.origin)
+      e.preventDefault()
+      if (url.pathname + url.search !== window.location.pathname + window.location.search || window.location.hash) {
+        window.history.pushState(null, '', url.pathname + url.search)
+      }
+      on({ type: 'click' })
+    }
+    document.addEventListener('click', click)
+    return () => {
+      window.removeEventListener('hashchange', on)
+      window.removeEventListener('popstate', on)
+      window.removeEventListener('yx:route', on)
+      document.removeEventListener('click', click)
+    }
   }, [])
+
+  // Page title, description and canonical address follow the page; visits are counted (anonymously).
+  useEffect(() => {
+    const m = metaFor(route, catalogue)
+    document.title = m.title
+    const setMeta = (sel, attr, val) => {
+      const el = document.head.querySelector(sel)
+      if (el && val) el.setAttribute(attr, val)
+    }
+    setMeta('meta[name="description"]', 'content', m.description)
+    setMeta('link[rel="canonical"]', 'href', m.canonical)
+    setMeta('meta[property="og:url"]', 'content', m.canonical)
+    setMeta('meta[property="og:title"]', 'content', m.title)
+    setMeta('meta[property="og:description"]', 'content', m.description)
+  }, [route, catalogue])
+
+  useEffect(() => {
+    if (route.name !== 'auth') trackPage(PATH_MODE ? window.location.pathname : '/' + routeKey(route), document.title)
+  }, [route])
 
   useEffect(() => onOnline(setOnlineState), [])
 
@@ -90,7 +162,7 @@ export default function App() {
     if (IS_ARTIFACT) return
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const goTo = (to) => {
-      history.replaceState(null, '', window.location.pathname + window.location.search + '#' + to)
+      history.replaceState(null, '', PATH_MODE ? keyToPath(to) : window.location.pathname + window.location.search + '#' + to)
       setRoute(readRoute())
     }
     if (AUTH_LINK_ERROR) {
@@ -162,6 +234,9 @@ export default function App() {
     case 'legal':
       page = <Legal page={route.page} />
       break
+    case 'notfound':
+      page = <NotFound />
+      break
     default:
       page = <Home />
   }
@@ -209,7 +284,7 @@ function Header({ route }) {
         <Brand />
         <nav className="main-nav" aria-label="Main">
           {nav.map(([to, label, active]) => (
-            <a key={to} href={'#' + to} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>
+            <a key={to} href={toHref(to)} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>
               {label}
             </a>
           ))}
@@ -233,7 +308,7 @@ function TabBar({ route }) {
   return (
     <nav className="tabbar" aria-label="Quick navigation">
       {tabs.map(([to, label, icon, active]) => (
-        <a key={to} href={'#' + to} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>
+        <a key={to} href={toHref(to)} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>
           <Icon name={icon} size={22} />
           <span>{label}</span>
         </a>
@@ -243,6 +318,23 @@ function TabBar({ route }) {
         <span>Chat</span>
       </a>
     </nav>
+  )
+}
+
+function NotFound() {
+  return (
+    <div className="wrap notfound">
+      <h1>That page isn't here</h1>
+      <p className="muted">It may have moved, or the experience is no longer listed.</p>
+      <div className="btn-row">
+        <a className="btn gold" href={toHref('explore')}>
+          See all experiences
+        </a>
+        <a className="btn ghost" href={toHref('home')}>
+          Go home
+        </a>
+      </div>
+    </div>
   )
 }
 
@@ -287,20 +379,20 @@ function Footer({ tagline }) {
           <ul>
             {CATEGORIES.filter((c) => ['thrill', 'desert', 'sea', 'sky', 'city'].includes(c.id)).map((c) => (
               <li key={c.id}>
-                <a href={'#explore-' + c.id}>{c.label}</a>
+                <a href={toHref('explore-' + c.id)}>{c.label}</a>
               </li>
             ))}
-            <li><a href="#trips">Curated trips</a></li>
+            <li><a href={toHref('trips')}>Curated trips</a></li>
           </ul>
         </div>
         <div>
           <h3>Help</h3>
           <ul>
-            <li><a href="#track">Track a booking</a></li>
-            <li><a href="#passport">Your passport</a></li>
-            <li><a href="#booking-policy">Booking and cancellations</a></li>
-            <li><a href="#terms">Terms of use</a></li>
-            <li><a href="#privacy">Privacy</a></li>
+            <li><a href={toHref('track')}>Track a booking</a></li>
+            <li><a href={toHref('passport')}>Your passport</a></li>
+            <li><a href={toHref('booking-policy')}>Booking and cancellations</a></li>
+            <li><a href={toHref('terms')}>Terms of use</a></li>
+            <li><a href={toHref('privacy')}>Privacy</a></li>
           </ul>
         </div>
         <div className="footer-legal">

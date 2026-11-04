@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { to } from '../components/ui.jsx'
 import { useApp } from '../App.jsx'
 import { LEGAL_DEFAULTS, fillPlaceholders, richBlocks } from '../lib/content.js'
 import { niceDate } from '../lib/format.js'
@@ -12,9 +13,6 @@ export default function Legal({ page }) {
   const body = over.body || base.body
   const updated = (over.body && over.updated) || base.updated
 
-  useEffect(() => {
-    document.title = `${title} | Yondo Experiences`
-  }, [title])
 
   return (
     <article className="wrap legal">
@@ -37,7 +35,7 @@ export default function Legal({ page }) {
       </div>
       <nav className="legal-nav" aria-label="Policies">
         {Object.entries(LEGAL_DEFAULTS).map(([k, v]) => (
-          <a key={k} href={'#' + k}>
+          <a key={k} href={to(k)}>
             {content.legal?.[k]?.title || v.title}
           </a>
         ))}

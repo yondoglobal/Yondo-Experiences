@@ -4,6 +4,7 @@ import Scene from './Scene.jsx'
 import { photoUrl, photoSrcSet, photoAlt } from '../lib/photos.js'
 import { CAT } from '../lib/catalogue.js'
 import { aed } from '../lib/format.js'
+import { IS_ARTIFACT } from '../lib/config.js'
 
 import welcome from '../assets/mascot/welcome.webp'
 import welcomeSm from '../assets/mascot/welcome-sm.webp'
@@ -25,7 +26,7 @@ export const MASCOT = { welcome, welcomeSm, pointUp, jump, selfie, thumbs, waveP
 // Brand lockup: no logo mark, the full mascot leaning on the word "experiences".
 export function Brand({ footer = false }) {
   return (
-    <a href="#home" className={`brand ${footer ? 'brand-footer' : ''}`} aria-label="Yondo Experiences home">
+    <a href={to('home')} className={`brand ${footer ? 'brand-footer' : ''}`} aria-label="Yondo Experiences home">
       <span className="brand-word">
         <span className="bw-1">yondo</span>
         <span className="bw-2">experiences</span>
@@ -39,14 +40,48 @@ export function Mascot({ pose = 'welcome', className = '', alt = '', ...rest }) 
   return <img className={`mascot ${className}`} src={MASCOT[pose]} alt={alt} draggable="false" decoding="async" {...rest} />
 }
 
-export function navigate(hash) {
-  if (window.location.hash === '#' + hash) window.dispatchEvent(new HashChangeEvent('hashchange'))
-  else window.location.hash = hash
+// ---------- routing
+// The live site uses real addresses (/experiences/global-village/) so every page can be found by search engines.
+// The claude.ai preview keeps #hash routes because it runs inside a single file.
+export const PATH_MODE = !IS_ARTIFACT
+const STATIC = ['trips', 'passport', 'track', 'admin', 'terms', 'privacy', 'booking-policy', 'about']
+
+export function keyToPath(key) {
+  const k = String(key || 'home')
+  if (k === 'home' || k === '') return '/'
+  if (k === 'explore') return '/explore/'
+  if (k.startsWith('explore-')) return `/explore/${k.slice(8)}/`
+  if (k.startsWith('x-')) return `/experiences/${k.slice(2)}/`
+  return `/${k}/`
 }
 
-export function Link({ to, className = '', children, ...rest }) {
+export function pathToKey(pathname) {
+  const parts = String(pathname || '/').split('/').filter(Boolean).map(decodeURIComponent)
+  if (!parts.length) return 'home'
+  if (parts[0] === 'explore') return parts[1] ? 'explore-' + parts[1] : 'explore'
+  if (parts[0] === 'experiences' && parts[1]) return 'x-' + parts[1]
+  if (STATIC.includes(parts[0])) return parts[0]
+  return 'notfound:' + parts.join('/')
+}
+
+export function to(key) {
+  return PATH_MODE ? keyToPath(key) : '#' + key
+}
+
+export function navigate(key) {
+  if (!PATH_MODE) {
+    if (window.location.hash === '#' + key) window.dispatchEvent(new HashChangeEvent('hashchange'))
+    else window.location.hash = key
+    return
+  }
+  const path = keyToPath(key)
+  if (window.location.pathname !== path || window.location.hash) window.history.pushState(null, '', path + window.location.search)
+  window.dispatchEvent(new Event('yx:route'))
+}
+
+export function Link({ to: key, className = '', children, ...rest }) {
   return (
-    <a href={'#' + to} className={className} {...rest}>
+    <a href={to(key)} className={className} {...rest}>
       {children}
     </a>
   )
@@ -112,7 +147,7 @@ export function SaveSticker({ pct, className = '' }) {
 export function TicketCard({ exp, compact = false, showStandard = true }) {
   const cat = CAT[exp.cat]
   return (
-    <a className={`ticket ${compact ? 'compact' : ''}`} href={'#x-' + exp.slug} aria-label={`${exp.name}, from ${aed(exp.from)}`}>
+    <a className={`ticket ${compact ? 'compact' : ''}`} href={to('x-' + exp.slug)} aria-label={`${exp.name}, from ${aed(exp.from)}`}>
       <Photo imgKey={exp.img} url={exp.imageUrl} cat={exp.cat} w={640} h={440} sizes="(max-width: 700px) 80vw, 320px" className="ticket-photo">
         <span className="chip on-photo">
           <Icon name={CAT_ICON[exp.cat]} size={14} /> {cat?.short}

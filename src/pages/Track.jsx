@@ -27,9 +27,6 @@ export default function Track() {
   const [busy, setBusy] = useState(false)
   const [res, setRes] = useState(null)
 
-  useEffect(() => {
-    document.title = 'Track a booking | Yondo Experiences'
-  }, [])
 
   async function submit(e) {
     e?.preventDefault()

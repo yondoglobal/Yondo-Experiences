@@ -7,7 +7,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 export default defineConfig(({ mode }) => {
   const artifact = mode === 'artifact'
   return {
-    base: './',
+    base: artifact ? './' : '/',
     plugins: [react(), ...(artifact ? [viteSingleFile()] : [])],
     define: { __ARTIFACT__: JSON.stringify(artifact) },
     build: {

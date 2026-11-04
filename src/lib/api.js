@@ -99,6 +99,9 @@ export const api = {
   requestTrip: (payload) => rpc('request_trip', { p: payload }),
   joinWaitlist: (payload) => rpc('join_waitlist', { p: payload }),
   myPassport: () => rpc('my_passport', {}),
+  myMarketing: () => rpc('my_marketing', {}),
+  setMarketing: (optedIn) => rpc('set_marketing_pref', { p_opted_in: optedIn }),
+  trackVisit: (payload) => rpc('track_visit', { p: payload }),
   updateProfile: (fullName, university, phone) =>
     rpc('update_profile', { p_full_name: fullName, p_university: university, p_phone: phone }),
 }

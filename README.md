@@ -23,6 +23,15 @@ Catalogue tab lists experiences still on an activity photo, so they can be repla
 `src/data/catalogue.json` is a fallback snapshot of **selling prices only**, used if the database is unreachable.
 To refresh it from a new price list locally: `python3 tools/build_data.py path/to/pricelist.xlsx` (run from `tools/`).
 
+## Search engines and AI assistants
+`npm run build` builds the app, then renders every public page to static HTML (`scripts/prerender.mjs`) with its own
+title, description and schema.org data, and writes `sitemap.xml`, `robots.txt` and `llms.txt`. Pages live at real
+addresses (`/experiences/<slug>/`, `/explore/<category>/`). The site rebuilds every night from the live catalogue.
+
+## Alerts
+New bookings, quote requests, waitlist joins, passport sign-ups and (optionally) visitors can send a Telegram message
+and/or a webhook (Make, Zapier). Set it up in Admin → Activity & alerts. A daily summary goes out at 21:00 Dubai time.
+
 ## Develop
 ```
 npm install
