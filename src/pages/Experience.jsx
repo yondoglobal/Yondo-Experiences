@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../App.jsx'
-import { CAT, estimate, periodFor, todayUAE, addDays, tripNoun } from '../lib/catalogue.js'
+import { CAT, estimate, periodFor, todayUAE, addDays, tripNoun, nextGroupTier } from '../lib/catalogue.js'
 import { api } from '../lib/api.js'
 import { aed, niceDate, waLink, normalisePhone } from '../lib/format.js'
 import { photoCredit, photosEnabled } from '../lib/photos.js'
@@ -200,6 +200,12 @@ function BookingFlow({ exp }) {
                     {o.name}
                     {o.offer && <span className="offer-tag inline">{o.offer}</span>}
                   </span>
+                  {o.groups.length > 0 && (
+                    <span className="group-line">
+                      <Icon name="squad" size={14} /> Group price:{' '}
+                      {o.groups.map((g) => `${g.n}+ ${aed(g.p)} each`).join(' · ')}
+                    </span>
+                  )}
                   {o.tags.length > 0 && (
                     <span className="option-tags">
                       {o.tags.map((t) => (
@@ -355,6 +361,10 @@ function BookingFlow({ exp }) {
 
 function PriceLines({ est, live, option, noun, nounPl, adults, children, date, showStd }) {
   if (!est) return null
+  const guests = adults + children
+  const groupMin = live ? live.groupMin : est.groupMin
+  const next = option.unit !== 'trip' ? nextGroupTier(option, date, guests) : null
+  const pNow = live?.priceAdult ?? est.priceAdult
   const total = live ? live.total : est.subtotal
   const std = live ? live.standardSubtotal : est.standardSubtotal
   const saving = showStd && std > total ? std - total : 0
@@ -396,6 +406,18 @@ function PriceLines({ est, live, option, noun, nounPl, adults, children, date, s
             </div>
           )}
         </>
+      )}
+      {groupMin && (
+        <div className="pl group">
+          <span>
+            <Icon name="squad" size={15} /> Group price for {groupMin}+ guests applied
+          </span>
+        </div>
+      )}
+      {next && next.p < pNow && (
+        <div className="group-nudge">
+          Add {next.n - guests} more {next.n - guests === 1 ? 'guest' : 'guests'} and everyone pays {aed(next.p)}.
+        </div>
       )}
       {live && live.discount > 0 && (
         <div className="pl discount">

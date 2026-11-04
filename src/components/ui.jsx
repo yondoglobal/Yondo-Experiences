@@ -118,7 +118,7 @@ export function TicketCard({ exp, compact = false, showStandard = true }) {
           <Icon name={CAT_ICON[exp.cat]} size={14} /> {cat?.short}
         </span>
         {showStandard && <SaveSticker pct={exp.savePct} />}
-        {exp.offer && <span className="offer-tag">{exp.offer}</span>}
+        {exp.offer ? <span className="offer-tag">{exp.offer}</span> : exp.groupDeal ? <span className="offer-tag group">Group deals</span> : null}
       </Photo>
       <div className="ticket-perf" aria-hidden="true" />
       <div className="ticket-body">

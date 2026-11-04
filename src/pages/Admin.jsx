@@ -7,7 +7,7 @@ import { CATEGORIES, CAT, todayUAE } from '../lib/catalogue.js'
 import { Icon } from '../components/Icon.jsx'
 import { Field, Notice, Sheet, CopyButton, Mascot, Photo } from '../components/ui.jsx'
 import { PLACE_PHOTOS } from '../lib/photos.js'
-import Pricing, { TicketSheet, TicketList, derive, loadPricing, unitLabel, updatedLine } from './admin/Pricing.jsx'
+import Pricing, { TicketSheet, TicketList, derive, loadPricing, unitLabel, updatedLine, groupLine } from './admin/Pricing.jsx'
 import Website from './admin/Website.jsx'
 import ImageField from './admin/ImageField.jsx'
 import { CODE_COMMISSION_TYPES } from './admin/money.js'
@@ -1055,6 +1055,7 @@ function InlinePrices({ rows, onOpen }) {
                   {unitLabel(r)}
                   {r.status !== 'auto' && <span className={`pill p-${r.status} tiny`}>{STATUS_SHORT[r.status]}</span>}
                 </small>
+                {groupLine(r) && <small className="group-small">{groupLine(r)}</small>}
               </td>
               <td className="num">{aed(r.pkg.cost)}</td>
               <td className="num">{aed(r.pkg.standard)}</td>

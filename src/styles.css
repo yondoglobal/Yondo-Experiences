@@ -4337,8 +4337,8 @@ a.announce:hover span {
   box-shadow: 0 0 0 3px var(--info-soft);
 }
 .price-grid input.set {
-  border-color: #c8392f;
-  background: var(--err-soft);
+  border-color: var(--gold-deep);
+  background: var(--gold-soft);
   font-weight: 700;
 }
 .price-grid input::placeholder {
@@ -4484,4 +4484,69 @@ a.announce:hover span {
 }
 .updated-cell {
   max-width: 210px;
+}
+
+/* ---------- group prices */
+.group-prices {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  border: 1.5px dashed var(--line);
+}
+.gp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.gp-head h3 {
+  font-size: 1rem;
+  margin-bottom: 2px;
+}
+.gp-head .muted {
+  max-width: 560px;
+}
+.gp-n {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.price-grid .gp-n input {
+  width: 64px;
+}
+small.group-small,
+.admin-table td small.group-small {
+  color: var(--teal-ink);
+  font-weight: 650;
+}
+.group-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--teal-ink);
+}
+.pl.group span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ok);
+  font-weight: 650;
+}
+.group-nudge {
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--gold-soft);
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+.offer-tag.group {
+  background: var(--teal-night);
 }

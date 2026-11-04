@@ -169,6 +169,7 @@ export default function Pricing({ settings, demo, onChange }) {
                       <small>
                         {r.ticket} · {unitLabel(r)}
                       </small>
+                      {groupLine(r) && <small className="group-small">{groupLine(r)}</small>}
                     </td>
                     <td className="num">{fmt(r.pkg.cost)}</td>
                     <td className="num">{fmt(r.pkg.standard)}</td>
@@ -413,6 +414,11 @@ function Calculator({ fee: siteFee, floor }) {
 }
 
 // ------------------------------------------------------------ one ticket: supplier prices, our price and offer in one place
+export function groupLine(r) {
+  const g = r.group_prices || []
+  return g.length ? 'Groups: ' + g.map((x) => `${x.n}+ ${fmt(x.p)}`).join(' · ') : ''
+}
+
 export function updatedLine(r) {
   if (!r.updated_at) return ''
   const by = r.updated_by && r.updated_by !== 'system' ? `edited by ${r.updated_by}` : `from ${r.source_file || 'the price list'}`
@@ -438,6 +444,12 @@ export function TicketSheet({ r, settings, demo, onClose, onSaved }) {
   const [cval, setCval] = useState(settings.default_commission_share ?? 30)
   const [disc, setDisc] = useState(r.experience_discount ?? '')
   const [busy, setBusy] = useState(false)
+  const initGroups = (r.group_prices || []).map((g) => ({ n: String(g.n), pp: str(g.p), total: str(r2(g.p * g.n)) }))
+  const g0 = (r.group_prices || [])[0] || {}
+  const [groups, setGroups] = useState(initGroups)
+  const [gLabel, setGLabel] = useState(g0.label || '')
+  const [gStart, setGStart] = useState(g0.starts || '')
+  const [gEnd, setGEnd] = useState(g0.ends || '')
 
   const showA = r.unit !== 'trip'
   const showT = r.unit !== 'person'
@@ -490,12 +502,28 @@ export function TicketSheet({ r, settings, demo, onClose, onSaved }) {
     if (o !== '' && mkt > 0 && Number(o) > mkt) warnings.push(`${row.name}: our price is above the market price, so no saving shows to customers.`)
   }
   if (start && end && end < start) problems.push('The offer ends before it starts.')
+  const normalPp = live.price.a || 0
+  const seenN = new Set()
+  for (const g of groups) {
+    const n = parseInt(g.n)
+    const pp = num(g.pp)
+    if (!(n >= 2)) problems.push('Group prices need at least 2 guests.')
+    else if (seenN.has(n)) problems.push(`There are two group prices for ${n}+ guests.`)
+    seenN.add(n)
+    if (!(pp > 0)) problems.push(`Add the price for ${n || '?'}+ guests.`)
+    else if (pp - (pp * fee) / 100 - v.ca < 0) problems.push(`The ${n}+ group price sells at a loss. Break-even is ${fmt(Math.ceil(v.ca / (1 - fee / 100)))} each.`)
+    else if (normalPp && pp >= normalPp) warnings.push(`The ${n}+ price (${fmt(pp)} each) isn't lower than the normal price (${fmt(normalPp)}), so it won't change anything.`)
+  }
+  if (gStart && gEnd && gEnd < gStart) problems.push('The group prices end before they start.')
   if (!live.sellable && !problems.length) warnings.push(`At the market price this ticket earns less than your floor (${fmt(fl)}), so it stays hidden from the site.`)
   else if (b.net >= 0 && live.b.net < fl && !problems.length) warnings.push(`Yondo keeps less than your floor of ${fmt(fl)} here. It will still sell at this price.`)
 
   const supChanged = JSON.stringify(sup) !== JSON.stringify(initSup)
   const offerChanged = JSON.stringify(ours) !== JSON.stringify(initOurs) || label !== (r.offer_label || '') || start !== (r.offer_starts || '') || end !== (r.offer_ends || '')
-  const dirty = supChanged || offerChanged
+  const groupsChanged =
+    JSON.stringify(groups.map((g) => [parseInt(g.n), num(g.pp)])) !== JSON.stringify(initGroups.map((g) => [parseInt(g.n), num(g.pp)])) ||
+    (groups.length > 0 && (gLabel !== (g0.label || '') || gStart !== (g0.starts || '') || gEnd !== (g0.ends || '')))
+  const dirty = supChanged || offerChanged || groupsChanged
 
   async function save() {
     if (demo) return showToast('Example data. Changes are not saved.', 'error')
@@ -525,6 +553,14 @@ export function TicketSheet({ r, settings, demo, onClose, onSaved }) {
           if (error) throw error
           done.push('automatic price')
         }
+      }
+      if (groupsChanged) {
+        const tiers = groups.map((g) => ({ n: parseInt(g.n), p: num(g.pp) })).sort((a, b) => a.n - b.n)
+        const { data, error } = await supabase.rpc('admin_set_group_prices', {
+          p_option: r.option_key, p_tiers: tiers, p_label: gLabel.trim().slice(0, 28) || null, p_starts: gStart || null, p_ends: gEnd || null,
+        })
+        if (error || data?.ok === false) throw error || new Error(data.error)
+        done.push(tiers.length ? 'group prices' : 'group prices removed')
       }
       showToast(`Saved ${done.join(' and ')}. The site is using it now.`)
       onSaved()
@@ -620,6 +656,106 @@ export function TicketSheet({ r, settings, demo, onClose, onSaved }) {
             <input type="checkbox" checked={allPeriods} onChange={(e) => setAllPeriods(e.target.checked)} />
             <span>Apply these buying and market prices to all {r.periods} price periods of this ticket, not just this one</span>
           </label>
+        )}
+
+        {showA && (
+          <section className="group-prices">
+            <div className="gp-head">
+              <div>
+                <h3>Group prices</h3>
+                <p className="muted small">
+                  A lower price per person when more people book together, e.g. 2+ guests at one price and 4+ at a lower one. The site shows them on
+                  the ticket and applies the best one to the booking total automatically.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn ghost small"
+                onClick={() => {
+                  const last = groups.length ? parseInt(groups[groups.length - 1].n) || 2 : 0
+                  const n = last ? last + 2 : 2
+                  setGroups([...groups, { n: String(n), pp: '', total: '' }])
+                }}
+              >
+                <Icon name="plus" size={14} /> Add group price
+              </button>
+            </div>
+            {groups.length > 0 && (
+              <>
+                <div className="table-wrap">
+                  <table className="price-grid gp-grid">
+                    <thead>
+                      <tr>
+                        <th>Guests</th>
+                        <th className="num">Price for the group</th>
+                        <th className="num">Per person</th>
+                        <th className="num">PG {fee}%</th>
+                        <th className="num">Yondo keeps each</th>
+                        <th className="num">Margin</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groups.map((g, i) => {
+                        const n = parseInt(g.n) || 0
+                        const pp = num(g.pp) || 0
+                        const m = lineMoney(pp, v.ca)
+                        const upd = (patch) => setGroups(groups.map((x, j) => (j === i ? { ...x, ...patch } : x)))
+                        return (
+                          <tr key={i}>
+                            <th scope="row">
+                              <span className="gp-n">
+                                <input aria-label="Minimum guests" type="number" min={2} max={200} value={g.n} onChange={(e) => {
+                                  const nn = parseInt(e.target.value) || 0
+                                  upd({ n: e.target.value, total: g.pp !== '' && nn ? String(r2(Number(g.pp) * nn)) : g.total })
+                                }} />
+                                <span>+ guests</span>
+                              </span>
+                            </th>
+                            <td className="num">
+                              <input aria-label={`Total for ${n} guests`} type="number" min={0} step="1" inputMode="decimal" value={g.total} placeholder={n ? `for ${n}` : ''} onChange={(e) => {
+                                const t = e.target.value
+                                upd({ total: t, pp: t !== '' && n ? String(r2(Number(t) / n)) : '' })
+                              }} />
+                            </td>
+                            <td className="num">
+                              <input aria-label={`Price each for ${n}+ guests`} type="number" min={0} step="0.5" inputMode="decimal" value={g.pp} placeholder={normalPp ? `was ${normalPp}` : ''} onChange={(e) => {
+                                const x = e.target.value
+                                upd({ pp: x, total: x !== '' && n ? String(r2(Number(x) * n)) : '' })
+                              }} />
+                            </td>
+                            <td className="num">{pp ? `−${fmt(r2(m.pg))}` : '—'}</td>
+                            <td className={`num strong ${m.keeps < 0 ? 'neg' : m.keeps < fl ? 'warn-text' : 'pos'}`}>{pp ? fmt(r2(m.keeps)) : '—'}</td>
+                            <td className="num">{pp ? <MarginBar pct={r2(m.margin)} /> : '—'}</td>
+                            <td>
+                              <button type="button" className="icon-btn" aria-label={`Remove ${n}+ group price`} onClick={() => setGroups(groups.filter((_, j) => j !== i))}>
+                                <Icon name="close" size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="three">
+                  <Field id="gp-label" label="Badge in the booking" optional hint="Shown when the group price applies. Default: Group price, 4+ guests.">
+                    <input id="gp-label" value={gLabel} maxLength={28} onChange={(e) => setGLabel(e.target.value)} placeholder="Squad deal" />
+                  </Field>
+                  <Field id="gp-start" label="Starts" optional>
+                    <input id="gp-start" type="date" value={gStart} onChange={(e) => setGStart(e.target.value)} />
+                  </Field>
+                  <Field id="gp-end" label="Ends" optional>
+                    <input id="gp-end" type="date" value={gEnd} min={gStart || undefined} onChange={(e) => setGEnd(e.target.value)} />
+                  </Field>
+                </div>
+                <p className="fine">
+                  Group size counts adults and children. Children pay the group price or the child price, whichever is lower.
+                  {live.combined && ' The vehicle price stays the same.'} A referral code can still take a little more off where the margin allows.
+                </p>
+              </>
+            )}
+          </section>
         )}
 
         <div className="ts-grid">
@@ -830,7 +966,7 @@ const ex = (o) => ({
 })
 const DEMO_PRICING = [
   ex({ option_key: 'ex-gv', experience_id: 2, experience: 'Example city ticket', category: 'city', ticket: 'Any day entry', cost_adult: 24, rec_adult: 30 }),
-  ex({ option_key: 'ex-1', experience_id: 1, experience: 'Example theme park', ticket: 'Open-dated ticket', cost_adult: 80, rec_adult: 120, rec_child: 110, cost_child: 75, offer_id: 1, offer_label: 'Winter deal', offer_adult: 100 }),
+  ex({ option_key: 'ex-1', experience_id: 1, experience: 'Example theme park', ticket: 'Open-dated ticket', cost_adult: 80, rec_adult: 120, rec_child: 110, cost_child: 75, offer_id: 1, offer_label: 'Winter deal', offer_adult: 100, group_prices: [{ n: 2, p: 97, label: 'Squad deal' }, { n: 4, p: 94, label: 'Squad deal' }] }),
   ex({ option_key: 'ex-2', experience_id: 1, updated_by: 'harrsh@yondo.global', updated_at: new Date().toISOString(), experience: 'Example theme park', ticket: 'Fast track add-on', cost_adult: 150, rec_adult: 200 }),
   ex({ option_key: 'ex-3', experience: 'Example desert safari', category: 'desert', ticket: 'Shared car, evening', cost_adult: 110, rec_adult: 150 }),
   ex({ option_key: 'ex-4', experience: 'Example yacht', category: 'sea', ticket: 'Private yacht, 2 hours', unit: 'trip', rec_adult: 0, cost_adult: 0, rec_trip: 1200, cost_trip: 950 }),

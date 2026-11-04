@@ -110,6 +110,7 @@ export function prepare(raw) {
             tripFrom: unit === 'person+trip' ? cheapest.t : null,
             tripStd: unit === 'person+trip' ? cheapest.mt || cheapest.t : null,
             offer: current.o || cheapest.o || null,
+            groups: unit === 'trip' ? [] : (o.groups || []).filter((g) => !g.e || g.e >= today).sort((a, b) => a.n - b.n),
             firstDate: periods.reduce((m, p) => (p.s < m ? p.s : m), periods[0].s),
             lastDate: periods.reduce((m, p) => (p.e > m ? p.e : m), periods[0].e),
           }
@@ -129,6 +130,7 @@ export function prepare(raw) {
         imageUrl: e.imageUrl || null,
         imageCredit: e.imageCredit || null,
         offer: e.offer || main.find((o) => o.offer)?.offer || null,
+        groupDeal: options.some((o) => o.groups.length > 0),
         featured: !!e.featured,
         sort: e.sort || 0,
         options,
@@ -171,9 +173,37 @@ export function periodFor(option, date) {
   return hits[0]
 }
 
+// The group price for this party size and date (largest tier that applies), or null.
+export function groupTier(option, date, guests) {
+  const tiers = (option?.groups || []).filter((g) => g.n <= guests && (!g.s || g.s <= date) && (!g.e || g.e >= date))
+  return tiers.length ? tiers[tiers.length - 1] : null
+}
+// The next group price this party could unlock by adding guests.
+export function nextGroupTier(option, date, guests) {
+  return (option?.groups || []).find((g) => g.n > guests && (!g.s || g.s <= date) && (!g.e || g.e >= date)) || null
+}
+
 export function estimate(option, date, adults, children) {
-  const p = periodFor(option, date)
-  if (!p) return null
+  const p0 = periodFor(option, date)
+  if (!p0) return null
+  let p = p0
+  let group = null
+  if (option.unit !== 'trip') {
+    const g = groupTier(option, date, adults + children)
+    if (g && g.p < p0.a) {
+      group = g
+      p = { ...p0, a: g.p, c: p0.c ? Math.min(p0.c, g.p) : p0.c }
+    }
+  }
+  const r = estimateFor(option, p, adults, children)
+  if (r && group) {
+    r.groupMin = group.n
+    r.offer = group.l || `Group price, ${group.n}+ guests`
+  }
+  return r
+}
+
+function estimateFor(option, p, adults, children) {
   if (option.unit === 'trip') {
     const std = p.mt || p.t
     return {
