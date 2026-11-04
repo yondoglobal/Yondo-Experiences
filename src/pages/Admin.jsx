@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../App.jsx'
 import { supabase, sendSignInEmail, verifyCode, signOut } from '../lib/api.js'
 import { IS_ARTIFACT, BRAND } from '../lib/config.js'
@@ -7,7 +7,7 @@ import { CATEGORIES, CAT, todayUAE } from '../lib/catalogue.js'
 import { Icon } from '../components/Icon.jsx'
 import { Field, Notice, Sheet, CopyButton, Mascot, Photo } from '../components/ui.jsx'
 import { PLACE_PHOTOS } from '../lib/photos.js'
-import Pricing, { TicketSheet, TicketList, derive, loadPricing } from './admin/Pricing.jsx'
+import Pricing, { TicketSheet, TicketList, derive, loadPricing, unitLabel, updatedLine } from './admin/Pricing.jsx'
 import Website from './admin/Website.jsx'
 import ImageField from './admin/ImageField.jsx'
 import { CODE_COMMISSION_TYPES } from './admin/money.js'
@@ -848,6 +848,13 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
   const [view, setView] = useState('all')
   const [edit, setEdit] = useState(null)
   const [ticket, setTicket] = useState(null)
+  const [openRows, setOpenRows] = useState(() => new Set())
+  const toggleRow = (id) =>
+    setOpenRows((prev) => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
   const [prices, setPrices] = useState(null)
   const loadPrices = useCallback(async () => {
     try {
@@ -890,7 +897,8 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
           <div>
             <h2>Experiences</h2>
             <p className="muted small">
-              Names, descriptions, photos and what shows on the site. {needPhoto > 0 && `${needPhoto} live experiences use an activity photo rather than a photo of the actual place; upload the supplier's photo to replace it.`}
+              Names, descriptions, photos and what shows on the site. Show prices on any row to see buying, market and our price with the PG fee and margin for every ticket.{' '}
+              {needPhoto > 0 && `${needPhoto} live ${needPhoto === 1 ? 'experience uses' : 'experiences use'} an activity photo rather than a photo of the actual place; upload the supplier's photo to replace it.`}
             </p>
           </div>
         </div>
@@ -903,6 +911,9 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
             ))}
           </div>
           <input className="admin-search" placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter experiences" />
+          <button className="btn ghost small" onClick={() => setOpenRows(openRows.size ? new Set() : new Set(list.filter((e) => byExp[e.id]?.length).map((e) => e.id)))}>
+            {openRows.size ? 'Collapse all prices' : 'Show all prices'}
+          </button>
         </div>
         <div className="table-wrap">
           <table className="admin-table">
@@ -921,8 +932,11 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
             <tbody>
               {list.map((e) => {
                 const [kind, kindLabel] = photoKind(e)
+                const rows = byExp[e.id]
+                const expanded = openRows.has(e.id)
                 return (
-                  <tr key={e.id} className={e.hidden ? 'dim' : ''}>
+                  <Fragment key={e.id}>
+                  <tr className={`${e.hidden ? 'dim' : ''} ${expanded ? 'expanded' : ''}`}>
                     <td>
                       <button className="thumb-btn" onClick={() => setEdit(e)} aria-label={`Change photo for ${e.name}`}>
                         <Photo imgKey={e.image_key} url={e.image_url} cat={e.category} w={160} h={110} className="thumb" />
@@ -938,7 +952,12 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
                     </td>
                     <td>{CAT[e.category]?.label || e.category}</td>
                     <td>
-                      <PriceSummary rows={byExp[e.id]} loading={prices === null} />
+                      <PriceSummary rows={rows} loading={prices === null} />
+                      {rows?.length > 0 && (
+                        <button type="button" className="link-btn small-link" aria-expanded={expanded} onClick={() => toggleRow(e.id)}>
+                          {expanded ? 'Hide prices' : 'Show prices'} <Icon name={expanded ? 'up' : 'down'} size={14} />
+                        </button>
+                      )}
                     </td>
                     <td className="num">
                       {e.discount_pct != null ? `${Number(e.discount_pct)}%` : `${siteD}%`}
@@ -964,6 +983,14 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
                       </button>
                     </td>
                   </tr>
+                  {expanded && rows?.length > 0 && (
+                    <tr className="price-expand">
+                      <td colSpan={8}>
+                        <InlinePrices rows={rows} onOpen={setTicket} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -1001,6 +1028,57 @@ function Catalogue({ experiences, imports, settings, demo, onChange }) {
   )
 }
 
+// Every ticket of one experience, with the full money breakdown, right inside the catalogue.
+function InlinePrices({ rows, onOpen }) {
+  return (
+    <div className="inline-prices">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th className="num">Buying</th>
+            <th className="num">Market</th>
+            <th className="num">Our price</th>
+            <th className="num">PG {rows[0]?.fee}%</th>
+            <th className="num">Yondo keeps</th>
+            <th className="num">Margin</th>
+            <th>Last updated</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.option_key} className={r.status === 'hidden' ? 'dim' : ''}>
+              <td>
+                <strong>{r.ticket}</strong>
+                <small>
+                  {unitLabel(r)}
+                  {r.status !== 'auto' && <span className={`pill p-${r.status} tiny`}>{STATUS_SHORT[r.status]}</span>}
+                </small>
+              </td>
+              <td className="num">{aed(r.pkg.cost)}</td>
+              <td className="num">{aed(r.pkg.standard)}</td>
+              <td className="num strong">{aed(r.pkg.price)}</td>
+              <td className="num">−{aed(r.b.fee)}</td>
+              <td className={`num ${r.b.net < 0 ? 'neg' : r.b.net < r.floor ? 'warn-text' : 'pos'}`}>{aed(r.b.net)}</td>
+              <td className="num">{Number(r.b.marginPct).toFixed(1)}%</td>
+              <td>
+                <small className="updated-cell">{updatedLine(r)}</small>
+              </td>
+              <td>
+                <button className="btn ghost small" onClick={() => onOpen(r)}>
+                  Edit prices
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+const STATUS_SHORT = { offer: 'Own price', scheduled: 'Scheduled', hidden: 'Hidden: under floor', off: 'Experience hidden' }
+
 function PriceSummary({ rows, loading }) {
   if (loading) return <span className="muted">…</span>
   if (!rows?.length) return <span className="muted">No current prices</span>
@@ -1012,7 +1090,11 @@ function PriceSummary({ rows, loading }) {
       {live.length ? `From ${aed(Math.min(...live.map((r) => r.pkg.price)))}` : 'All hidden'}
       <small>
         {rows.length} {rows.length === 1 ? 'ticket' : 'tickets'}
-        {margins.length ? ` · margin ${Math.round(Math.min(...margins))}–${Math.round(Math.max(...margins))}%` : ''}
+        {margins.length
+          ? Math.round(Math.min(...margins)) === Math.round(Math.max(...margins))
+            ? ` · margin ${Math.round(margins[0])}%`
+            : ` · margin ${Math.round(Math.min(...margins))}–${Math.round(Math.max(...margins))}%`
+          : ''}
       </small>
       {latest && <small>Updated {niceDate(latest, { day: 'numeric', month: 'short' })}</small>}
     </>

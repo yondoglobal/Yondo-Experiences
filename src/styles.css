@@ -4413,3 +4413,75 @@ a.announce:hover span {
 .ticket-list small {
   font-size: 0.76rem;
 }
+
+/* ---------- catalogue: prices inline */
+.link-btn.small-link {
+  font-size: 0.82rem;
+  padding: 2px 0 0;
+}
+.admin-table tr.expanded td {
+  border-bottom-color: transparent;
+}
+.admin-table tr.price-expand {
+  cursor: default;
+}
+.admin-table tr.price-expand:hover {
+  background: none;
+}
+.admin-table tr.price-expand > td {
+  padding: 0 12px 14px;
+}
+.inline-prices {
+  overflow-x: auto;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  padding: 4px 12px;
+}
+.inline-prices table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  min-width: 860px;
+}
+.inline-prices th {
+  text-align: left;
+  font-size: 0.74rem;
+  font-weight: 650;
+  color: var(--ink-2);
+  padding: 8px 8px 6px;
+  white-space: nowrap;
+  border-bottom: 1.5px solid var(--line);
+}
+.inline-prices td {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.inline-prices tbody tr:last-child td {
+  border-bottom: 0;
+}
+.inline-prices tr.dim td {
+  opacity: 0.55;
+}
+.inline-prices .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.inline-prices td small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 0.76rem;
+}
+.inline-prices .strong {
+  font-weight: 800;
+}
+.pill.tiny {
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.updated-cell {
+  max-width: 210px;
+}

@@ -594,7 +594,7 @@ export function TicketSheet({ r, settings, demo, onClose, onSaved }) {
                         step="1"
                         inputMode="decimal"
                         disabled={childAsAdult}
-                        placeholder={childAsAdult ? 'Adult price' : auto != null ? `Auto ${auto}` : ''}
+                        placeholder={childAsAdult ? '= adult' : auto != null ? `Auto ${auto}` : ''}
                         value={ours[row.k]}
                         onChange={(e) => setOurs({ ...ours, [row.k]: e.target.value })}
                       />
@@ -829,6 +829,7 @@ const ex = (o) => ({
   offer_id: null, offer_label: null, offer_starts: null, offer_ends: null, offer_adult: null, offer_child: null, offer_trip: null, ...o,
 })
 const DEMO_PRICING = [
+  ex({ option_key: 'ex-gv', experience_id: 2, experience: 'Example city ticket', category: 'city', ticket: 'Any day entry', cost_adult: 24, rec_adult: 30 }),
   ex({ option_key: 'ex-1', experience_id: 1, experience: 'Example theme park', ticket: 'Open-dated ticket', cost_adult: 80, rec_adult: 120, rec_child: 110, cost_child: 75, offer_id: 1, offer_label: 'Winter deal', offer_adult: 100 }),
   ex({ option_key: 'ex-2', experience_id: 1, updated_by: 'harrsh@yondo.global', updated_at: new Date().toISOString(), experience: 'Example theme park', ticket: 'Fast track add-on', cost_adult: 150, rec_adult: 200 }),
   ex({ option_key: 'ex-3', experience: 'Example desert safari', category: 'desert', ticket: 'Shared car, evening', cost_adult: 110, rec_adult: 150 }),
